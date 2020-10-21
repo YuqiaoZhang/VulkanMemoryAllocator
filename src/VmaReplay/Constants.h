@@ -60,7 +60,11 @@ enum class VULKAN_EXTENSION_REQUEST
     DEFAULT
 };
 
-enum class OBJECT_TYPE { BUFFER, IMAGE };
+enum class OBJECT_TYPE
+{
+    BUFFER,
+    IMAGE
+};
 
 enum class VMA_FUNCTION
 {
@@ -91,59 +95,59 @@ enum class VMA_FUNCTION
     SetPoolName,
     Count
 };
-extern const char* VMA_FUNCTION_NAMES[];
+extern const char *VMA_FUNCTION_NAMES[];
 
-extern const char* VMA_POOL_CREATE_FLAG_NAMES[];
+extern const char *VMA_POOL_CREATE_FLAG_NAMES[];
 extern const uint32_t VMA_POOL_CREATE_FLAG_VALUES[];
 extern const size_t VMA_POOL_CREATE_FLAG_COUNT;
 
-extern const char* VK_BUFFER_CREATE_FLAG_NAMES[];
+extern const char *VK_BUFFER_CREATE_FLAG_NAMES[];
 extern const uint32_t VK_BUFFER_CREATE_FLAG_VALUES[];
 extern const size_t VK_BUFFER_CREATE_FLAG_COUNT;
 
-extern const char* VK_BUFFER_USAGE_FLAG_NAMES[];
+extern const char *VK_BUFFER_USAGE_FLAG_NAMES[];
 extern const uint32_t VK_BUFFER_USAGE_FLAG_VALUES[];
 extern const size_t VK_BUFFER_USAGE_FLAG_COUNT;
 
-extern const char* VK_SHARING_MODE_NAMES[];
+extern const char *VK_SHARING_MODE_NAMES[];
 extern const size_t VK_SHARING_MODE_COUNT;
 
-extern const char* VK_IMAGE_CREATE_FLAG_NAMES[];
+extern const char *VK_IMAGE_CREATE_FLAG_NAMES[];
 extern const uint32_t VK_IMAGE_CREATE_FLAG_VALUES[];
 extern const size_t VK_IMAGE_CREATE_FLAG_COUNT;
 
-extern const char* VK_IMAGE_TYPE_NAMES[];
+extern const char *VK_IMAGE_TYPE_NAMES[];
 extern const size_t VK_IMAGE_TYPE_COUNT;
 
-extern const char* VK_FORMAT_NAMES[];
+extern const char *VK_FORMAT_NAMES[];
 extern const uint32_t VK_FORMAT_VALUES[];
 extern const size_t VK_FORMAT_COUNT;
 
-extern const char* VK_SAMPLE_COUNT_NAMES[];
+extern const char *VK_SAMPLE_COUNT_NAMES[];
 extern const uint32_t VK_SAMPLE_COUNT_VALUES[];
 extern const size_t VK_SAMPLE_COUNT_COUNT;
 
-extern const char* VK_IMAGE_TILING_NAMES[];
+extern const char *VK_IMAGE_TILING_NAMES[];
 extern const size_t VK_IMAGE_TILING_COUNT;
 
-extern const char* VK_IMAGE_USAGE_FLAG_NAMES[];
+extern const char *VK_IMAGE_USAGE_FLAG_NAMES[];
 extern const uint32_t VK_IMAGE_USAGE_FLAG_VALUES[];
 extern const size_t VK_IMAGE_USAGE_FLAG_COUNT;
 
-extern const char* VK_IMAGE_TILING_NAMES[];
+extern const char *VK_IMAGE_TILING_NAMES[];
 extern const size_t VK_IMAGE_TILING_COUNT;
 
-extern const char* VK_IMAGE_LAYOUT_NAMES[];
+extern const char *VK_IMAGE_LAYOUT_NAMES[];
 extern const uint32_t VK_IMAGE_LAYOUT_VALUES[];
 extern const size_t VK_IMAGE_LAYOUT_COUNT;
 
-extern const char* VMA_ALLOCATION_CREATE_FLAG_NAMES[];
+extern const char *VMA_ALLOCATION_CREATE_FLAG_NAMES[];
 extern const uint32_t VMA_ALLOCATION_CREATE_FLAG_VALUES[];
 extern const size_t VMA_ALLOCATION_CREATE_FLAG_COUNT;
 
-extern const char* VMA_MEMORY_USAGE_NAMES[];
+extern const char *VMA_MEMORY_USAGE_NAMES[];
 extern const size_t VMA_MEMORY_USAGE_COUNT;
 
-extern const char* VK_MEMORY_PROPERTY_FLAG_NAMES[];
+extern const char *VK_MEMORY_PROPERTY_FLAG_NAMES[];
 extern const uint32_t VK_MEMORY_PROPERTY_FLAG_VALUES[];
 extern const size_t VK_MEMORY_PROPERTY_FLAG_COUNT;

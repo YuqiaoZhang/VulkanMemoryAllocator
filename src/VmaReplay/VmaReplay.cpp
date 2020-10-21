@@ -33,620 +33,614 @@ static const uint32_t VULKAN_API_VERSION = VK_API_VERSION_1_1;
 
 namespace DetailedStats
 {
-    
-struct Flag
-{
-    uint32_t setCount = 0;
 
-    void PostValue(bool v)
+    struct Flag
     {
-        if(v)
-        {
-            ++setCount;
-        }
-    }
+        uint32_t setCount = 0;
 
-    void Print(uint32_t totalCount) const
-    {
-        if(setCount)
+        void PostValue(bool v)
         {
-            printf(" %u (%.2f%%)\n", setCount, (double)setCount * 100.0 / (double)totalCount);
-        }
-        else
-        {
-            printf(" 0\n");
-        }
-    }
-};
-
-struct Enum
-{
-    Enum(size_t itemCount, const char* const* itemNames, const uint32_t* itemValues = nullptr) :
-        m_ItemCount(itemCount),
-        m_ItemNames(itemNames),
-        m_ItemValues(itemValues)
-    {
-    }
-
-    void PostValue(uint32_t v)
-    {
-        if(v < _countof(m_BaseCount))
-        {
-            ++m_BaseCount[v];
-        }
-        else
-        {
-            auto it = m_ExtendedCount.find(v);
-            if(it != m_ExtendedCount.end())
+            if (v)
             {
-                ++it->second;
+                ++setCount;
+            }
+        }
+
+        void Print(uint32_t totalCount) const
+        {
+            if (setCount)
+            {
+                printf(" %u (%.2f%%)\n", setCount, (double)setCount * 100.0 / (double)totalCount);
             }
             else
             {
-                m_ExtendedCount.insert(std::make_pair(v, 1u));
+                printf(" 0\n");
             }
         }
-    }
+    };
 
-    void Print(uint32_t totalCount) const
+    struct Enum
     {
-        if(totalCount &&
-            (!m_ExtendedCount.empty() || std::count_if(m_BaseCount, m_BaseCount + _countof(m_BaseCount), [](uint32_t v) { return v > 0; })))
+        Enum(size_t itemCount, const char *const *itemNames, const uint32_t *itemValues = nullptr) : m_ItemCount(itemCount),
+                                                                                                     m_ItemNames(itemNames),
+                                                                                                     m_ItemValues(itemValues)
         {
-            printf("\n");
-            
-            for(size_t i = 0; i < _countof(m_BaseCount); ++i)
+        }
+
+        void PostValue(uint32_t v)
+        {
+            if (v < _countof(m_BaseCount))
             {
-                const uint32_t currCount = m_BaseCount[i];
-                if(currCount)
+                ++m_BaseCount[v];
+            }
+            else
+            {
+                auto it = m_ExtendedCount.find(v);
+                if (it != m_ExtendedCount.end())
                 {
-                    PrintItem((uint32_t)i, currCount, totalCount);
+                    ++it->second;
                 }
-            }
-
-            for(const auto& it : m_ExtendedCount)
-            {
-                PrintItem(it.first, it.second, totalCount);
-            }
-        }
-        else
-        {
-            printf(" 0\n");
-        }
-    }
-
-private:
-    const size_t m_ItemCount;
-    const char* const* const m_ItemNames;
-    const uint32_t* const m_ItemValues;
-
-    uint32_t m_BaseCount[32] = {};
-    std::map<uint32_t, uint32_t> m_ExtendedCount;
-
-    void PrintItem(uint32_t value, uint32_t count, uint32_t totalCount) const
-    {
-        size_t itemIndex = m_ItemCount;
-        if(m_ItemValues)
-        {
-            for(itemIndex = 0; itemIndex < m_ItemCount; ++itemIndex)
-            {
-                if(m_ItemValues[itemIndex] == value)
+                else
                 {
-                    break;
+                    m_ExtendedCount.insert(std::make_pair(v, 1u));
                 }
             }
         }
-        else
+
+        void Print(uint32_t totalCount) const
         {
-            if(value < m_ItemCount)
+            if (totalCount &&
+                (!m_ExtendedCount.empty() || std::count_if(m_BaseCount, m_BaseCount + _countof(m_BaseCount), [](uint32_t v) { return v > 0; })))
             {
-                itemIndex = value;
-            }
-        }
+                printf("\n");
 
-        if(itemIndex < m_ItemCount)
-        {
-            printf("        %s: ", m_ItemNames[itemIndex]);
-        }
-        else
-        {
-            printf("        0x%X: ", value);
-        }
-
-        printf("%u (%.2f%%)\n", count, (double)count * 100.0 / (double)totalCount);
-    }
-};
-
-struct FlagSet
-{
-    uint32_t count[32] = {};
-
-    FlagSet(size_t count, const char* const* names, const uint32_t* values = nullptr) :
-        m_Count(count),
-        m_Names(names),
-        m_Values(values)
-    {
-    }
-
-    void PostValue(uint32_t v)
-    {
-        for(size_t i = 0; i < 32; ++i)
-        {
-            if((v & (1u << i)) != 0)
-            {
-                ++count[i];
-            }
-        }
-    }
-
-    void Print(uint32_t totalCount) const
-    {
-        if(totalCount &&
-            std::count_if(count, count + _countof(count), [](uint32_t v) { return v > 0; }))
-        {
-            printf("\n");
-            for(uint32_t bitIndex = 0; bitIndex < 32; ++bitIndex)
-            {
-                const uint32_t currCount = count[bitIndex];
-                if(currCount)
+                for (size_t i = 0; i < _countof(m_BaseCount); ++i)
                 {
-                    size_t itemIndex = m_Count;
-                    if(m_Values)
+                    const uint32_t currCount = m_BaseCount[i];
+                    if (currCount)
                     {
-                        for(itemIndex = 0; itemIndex < m_Count; ++itemIndex)
+                        PrintItem((uint32_t)i, currCount, totalCount);
+                    }
+                }
+
+                for (const auto &it : m_ExtendedCount)
+                {
+                    PrintItem(it.first, it.second, totalCount);
+                }
+            }
+            else
+            {
+                printf(" 0\n");
+            }
+        }
+
+    private:
+        const size_t m_ItemCount;
+        const char *const *const m_ItemNames;
+        const uint32_t *const m_ItemValues;
+
+        uint32_t m_BaseCount[32] = {};
+        std::map<uint32_t, uint32_t> m_ExtendedCount;
+
+        void PrintItem(uint32_t value, uint32_t count, uint32_t totalCount) const
+        {
+            size_t itemIndex = m_ItemCount;
+            if (m_ItemValues)
+            {
+                for (itemIndex = 0; itemIndex < m_ItemCount; ++itemIndex)
+                {
+                    if (m_ItemValues[itemIndex] == value)
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                if (value < m_ItemCount)
+                {
+                    itemIndex = value;
+                }
+            }
+
+            if (itemIndex < m_ItemCount)
+            {
+                printf("        %s: ", m_ItemNames[itemIndex]);
+            }
+            else
+            {
+                printf("        0x%X: ", value);
+            }
+
+            printf("%u (%.2f%%)\n", count, (double)count * 100.0 / (double)totalCount);
+        }
+    };
+
+    struct FlagSet
+    {
+        uint32_t count[32] = {};
+
+        FlagSet(size_t count, const char *const *names, const uint32_t *values = nullptr) : m_Count(count),
+                                                                                            m_Names(names),
+                                                                                            m_Values(values)
+        {
+        }
+
+        void PostValue(uint32_t v)
+        {
+            for (size_t i = 0; i < 32; ++i)
+            {
+                if ((v & (1u << i)) != 0)
+                {
+                    ++count[i];
+                }
+            }
+        }
+
+        void Print(uint32_t totalCount) const
+        {
+            if (totalCount &&
+                std::count_if(count, count + _countof(count), [](uint32_t v) { return v > 0; }))
+            {
+                printf("\n");
+                for (uint32_t bitIndex = 0; bitIndex < 32; ++bitIndex)
+                {
+                    const uint32_t currCount = count[bitIndex];
+                    if (currCount)
+                    {
+                        size_t itemIndex = m_Count;
+                        if (m_Values)
                         {
-                            if(m_Values[itemIndex] == (1u << bitIndex))
+                            for (itemIndex = 0; itemIndex < m_Count; ++itemIndex)
                             {
-                                break;
+                                if (m_Values[itemIndex] == (1u << bitIndex))
+                                {
+                                    break;
+                                }
                             }
                         }
-                    }
-                    else
-                    {
-                        if(bitIndex < m_Count)
+                        else
                         {
-                            itemIndex = bitIndex;
+                            if (bitIndex < m_Count)
+                            {
+                                itemIndex = bitIndex;
+                            }
                         }
-                    }
 
-                    if(itemIndex < m_Count)
-                    {
-                        printf("        %s: ", m_Names[itemIndex]);
-                    }
-                    else
-                    {
-                        printf("        0x%X: ", 1u << bitIndex);
-                    }
+                        if (itemIndex < m_Count)
+                        {
+                            printf("        %s: ", m_Names[itemIndex]);
+                        }
+                        else
+                        {
+                            printf("        0x%X: ", 1u << bitIndex);
+                        }
 
-                    printf("%u (%.2f%%)\n", currCount, (double)currCount * 100.0 / (double)totalCount);
+                        printf("%u (%.2f%%)\n", currCount, (double)currCount * 100.0 / (double)totalCount);
+                    }
                 }
-            }
-        }
-        else
-        {
-            printf(" 0\n");
-        }
-    }
-
-private:
-    const size_t m_Count;
-    const char* const* const m_Names;
-    const uint32_t* const m_Values;
-};
-
-// T should be unsigned int
-template<typename T>
-struct MinMaxAvg
-{
-    T min = std::numeric_limits<T>::max();
-    T max = 0;
-    T sum = T();
-
-    void PostValue(T v)
-    {
-        this->min = std::min(this->min, v);
-        this->max = std::max(this->max, v);
-        sum += v;
-    }
-
-    void Print(uint32_t totalCount) const
-    {
-        if(totalCount && sum > T())
-        {
-            if(this->min == this->max)
-            {
-                printf(" %llu\n", (uint64_t)this->max);
             }
             else
             {
-                printf("\n        Min: %llu\n        Max: %llu\n        Avg: %llu\n",
-                    (uint64_t)this->min,
-                    (uint64_t)this->max,
-                    round_div<uint64_t>(this->sum, totalCount));
+                printf(" 0\n");
             }
         }
-        else
-        {
-            printf(" 0\n");
-        }
-    }
-};
 
-template<typename T>
-struct BitMask
-{
-    uint32_t zeroCount = 0;
-    uint32_t maxCount = 0;
+    private:
+        const size_t m_Count;
+        const char *const *const m_Names;
+        const uint32_t *const m_Values;
+    };
 
-    void PostValue(T v)
+    // T should be unsigned int
+    template <typename T>
+    struct MinMaxAvg
     {
-        if(v)
+        T min = std::numeric_limits<T>::max();
+        T max = 0;
+        T sum = T();
+
+        void PostValue(T v)
         {
-            if(v == std::numeric_limits<T>::max())
+            this->min = std::min(this->min, v);
+            this->max = std::max(this->max, v);
+            sum += v;
+        }
+
+        void Print(uint32_t totalCount) const
+        {
+            if (totalCount && sum > T())
             {
-                ++maxCount;
-            }
-        }
-        else
-        {
-            ++zeroCount;
-        }
-    }
-
-    void Print(uint32_t totalCount) const
-    {
-        if(totalCount > 0 && zeroCount < totalCount)
-        {
-            const uint32_t otherCount = totalCount - (zeroCount + maxCount);
-            
-            printf("\n        0: %u (%.2f%%)\n        Max: %u (%.2f%%)\n        Other: %u (%.2f%%)\n",
-                zeroCount,  (double)zeroCount  * 100.0 / (double)totalCount,
-                maxCount,   (double)maxCount   * 100.0 / (double)totalCount,
-                otherCount, (double)otherCount * 100.0 / (double)totalCount);
-        }
-        else
-        {
-            printf(" 0\n");
-        }
-    }
-};
-
-struct CountPerMemType
-{
-    uint32_t count[VK_MAX_MEMORY_TYPES] = {};
-
-    void PostValue(uint32_t v)
-    {
-        for(uint32_t i = 0; i < VK_MAX_MEMORY_TYPES; ++i)
-        {
-            if((v & (1u << i)) != 0)
-            {
-                ++count[i];
-            }
-        }
-    }
-
-    void Print(uint32_t totalCount) const
-    {
-        if(totalCount)
-        {
-            printf("\n");
-            for(uint32_t i = 0; i < VK_MAX_MEMORY_TYPES; ++i)
-            {
-                if(count[i])
+                if (this->min == this->max)
                 {
-                    printf("        %u: %u (%.2f%%)\n", i, count[i],
-                        (double)count[i] * 100.0 / (double)totalCount);
+                    printf(" %llu\n", (uint64_t)this->max);
+                }
+                else
+                {
+                    printf("\n        Min: %llu\n        Max: %llu\n        Avg: %llu\n",
+                           (uint64_t)this->min,
+                           (uint64_t)this->max,
+                           round_div<uint64_t>(this->sum, totalCount));
+                }
+            }
+            else
+            {
+                printf(" 0\n");
+            }
+        }
+    };
+
+    template <typename T>
+    struct BitMask
+    {
+        uint32_t zeroCount = 0;
+        uint32_t maxCount = 0;
+
+        void PostValue(T v)
+        {
+            if (v)
+            {
+                if (v == std::numeric_limits<T>::max())
+                {
+                    ++maxCount;
+                }
+            }
+            else
+            {
+                ++zeroCount;
+            }
+        }
+
+        void Print(uint32_t totalCount) const
+        {
+            if (totalCount > 0 && zeroCount < totalCount)
+            {
+                const uint32_t otherCount = totalCount - (zeroCount + maxCount);
+
+                printf("\n        0: %u (%.2f%%)\n        Max: %u (%.2f%%)\n        Other: %u (%.2f%%)\n",
+                       zeroCount, (double)zeroCount * 100.0 / (double)totalCount,
+                       maxCount, (double)maxCount * 100.0 / (double)totalCount,
+                       otherCount, (double)otherCount * 100.0 / (double)totalCount);
+            }
+            else
+            {
+                printf(" 0\n");
+            }
+        }
+    };
+
+    struct CountPerMemType
+    {
+        uint32_t count[VK_MAX_MEMORY_TYPES] = {};
+
+        void PostValue(uint32_t v)
+        {
+            for (uint32_t i = 0; i < VK_MAX_MEMORY_TYPES; ++i)
+            {
+                if ((v & (1u << i)) != 0)
+                {
+                    ++count[i];
                 }
             }
         }
-        else
+
+        void Print(uint32_t totalCount) const
         {
-            printf(" 0\n");
+            if (totalCount)
+            {
+                printf("\n");
+                for (uint32_t i = 0; i < VK_MAX_MEMORY_TYPES; ++i)
+                {
+                    if (count[i])
+                    {
+                        printf("        %u: %u (%.2f%%)\n", i, count[i],
+                               (double)count[i] * 100.0 / (double)totalCount);
+                    }
+                }
+            }
+            else
+            {
+                printf(" 0\n");
+            }
         }
-    }
-};
+    };
 
-struct StructureStats
-{
-    uint32_t totalCount = 0;
-};
+    struct StructureStats
+    {
+        uint32_t totalCount = 0;
+    };
 
-#define PRINT_FIELD(name) \
+#define PRINT_FIELD(name)     \
     printf("    " #name ":"); \
     (name).Print(totalCount);
 #define PRINT_FIELD_NAMED(name, nameStr) \
-    printf("    " nameStr ":"); \
+    printf("    " nameStr ":");          \
     (name).Print(totalCount);
 
-struct VmaPoolCreateInfoStats : public StructureStats
-{
-    CountPerMemType memoryTypeIndex;
-    FlagSet flags;
-    MinMaxAvg<VkDeviceSize> blockSize;
-    MinMaxAvg<size_t> minBlockCount;
-    MinMaxAvg<size_t> maxBlockCount;
-    Flag minMaxBlockCountEqual;
-    MinMaxAvg<uint32_t> frameInUseCount;
-
-    VmaPoolCreateInfoStats() :
-        flags(VMA_POOL_CREATE_FLAG_COUNT, VMA_POOL_CREATE_FLAG_NAMES, VMA_POOL_CREATE_FLAG_VALUES)
+    struct VmaPoolCreateInfoStats : public StructureStats
     {
-    }
+        CountPerMemType memoryTypeIndex;
+        FlagSet flags;
+        MinMaxAvg<VkDeviceSize> blockSize;
+        MinMaxAvg<size_t> minBlockCount;
+        MinMaxAvg<size_t> maxBlockCount;
+        Flag minMaxBlockCountEqual;
+        MinMaxAvg<uint32_t> frameInUseCount;
 
-    void PostValue(const VmaPoolCreateInfo& v)
-    {
-        ++totalCount;
-
-        memoryTypeIndex.PostValue(v.memoryTypeIndex);
-        flags.PostValue(v.flags);
-        blockSize.PostValue(v.blockSize);
-        minBlockCount.PostValue(v.minBlockCount);
-        maxBlockCount.PostValue(v.maxBlockCount);
-        minMaxBlockCountEqual.PostValue(v.minBlockCount == v.maxBlockCount);
-        frameInUseCount.PostValue(v.frameInUseCount);
-    }
-
-    void Print() const
-    {
-        if(totalCount == 0)
+        VmaPoolCreateInfoStats() : flags(VMA_POOL_CREATE_FLAG_COUNT, VMA_POOL_CREATE_FLAG_NAMES, VMA_POOL_CREATE_FLAG_VALUES)
         {
-            return;
         }
 
-        printf("VmaPoolCreateInfo (%u):\n", totalCount);
-
-        PRINT_FIELD(memoryTypeIndex);
-        PRINT_FIELD(flags);
-        PRINT_FIELD(blockSize);
-        PRINT_FIELD(minBlockCount);
-        PRINT_FIELD(maxBlockCount);
-        PRINT_FIELD_NAMED(minMaxBlockCountEqual, "minBlockCount == maxBlockCount");
-        PRINT_FIELD(frameInUseCount);
-    }
-};
-
-struct VkBufferCreateInfoStats : public StructureStats
-{
-    FlagSet flags;
-    MinMaxAvg<VkDeviceSize> size;
-    FlagSet usage;
-    Enum sharingMode;
-
-    VkBufferCreateInfoStats() :
-        flags(VK_BUFFER_CREATE_FLAG_COUNT, VK_BUFFER_CREATE_FLAG_NAMES, VK_BUFFER_CREATE_FLAG_VALUES),
-        usage(VK_BUFFER_USAGE_FLAG_COUNT, VK_BUFFER_USAGE_FLAG_NAMES, VK_BUFFER_USAGE_FLAG_VALUES),
-        sharingMode(VK_SHARING_MODE_COUNT, VK_SHARING_MODE_NAMES)
-    {
-    }
-
-    void PostValue(const VkBufferCreateInfo& v)
-    {
-        ++totalCount;
-
-        flags.PostValue(v.flags);
-        size.PostValue(v.size);
-        usage.PostValue(v.usage);
-        sharingMode.PostValue(v.sharingMode);
-    }
-
-    void Print() const
-    {
-        if(totalCount == 0)
+        void PostValue(const VmaPoolCreateInfo &v)
         {
-            return;
-        }
+            ++totalCount;
 
-        printf("VkBufferCreateInfo (%u):\n", totalCount);
-
-        PRINT_FIELD(flags);
-        PRINT_FIELD(size);
-        PRINT_FIELD(usage);
-        PRINT_FIELD(sharingMode);
-    }
-};
-
-struct VkImageCreateInfoStats : public StructureStats
-{
-    FlagSet flags;
-    Enum imageType;
-    Enum format;
-    MinMaxAvg<uint32_t> width, height, depth, mipLevels, arrayLayers;
-    Flag depthGreaterThanOne, mipLevelsGreaterThanOne, arrayLayersGreaterThanOne;
-    Enum samples;
-    Enum tiling;
-    FlagSet usage;
-    Enum sharingMode;
-    Enum initialLayout;
-
-    VkImageCreateInfoStats() :
-        flags(VK_IMAGE_CREATE_FLAG_COUNT, VK_IMAGE_CREATE_FLAG_NAMES, VK_IMAGE_CREATE_FLAG_VALUES),
-        imageType(VK_IMAGE_TYPE_COUNT, VK_IMAGE_TYPE_NAMES),
-        format(VK_FORMAT_COUNT, VK_FORMAT_NAMES, VK_FORMAT_VALUES),
-        samples(VK_SAMPLE_COUNT_COUNT, VK_SAMPLE_COUNT_NAMES, VK_SAMPLE_COUNT_VALUES),
-        tiling(VK_IMAGE_TILING_COUNT, VK_IMAGE_TILING_NAMES),
-        usage(VK_IMAGE_USAGE_FLAG_COUNT, VK_IMAGE_USAGE_FLAG_NAMES, VK_IMAGE_USAGE_FLAG_VALUES),
-        sharingMode(VK_SHARING_MODE_COUNT, VK_SHARING_MODE_NAMES),
-        initialLayout(VK_IMAGE_LAYOUT_COUNT, VK_IMAGE_LAYOUT_NAMES, VK_IMAGE_LAYOUT_VALUES)
-    {
-    }
-
-    void PostValue(const VkImageCreateInfo& v)
-    {
-        ++totalCount;
-
-        flags.PostValue(v.flags);
-        imageType.PostValue(v.imageType);
-        format.PostValue(v.format);
-        width.PostValue(v.extent.width);
-        height.PostValue(v.extent.height);
-        depth.PostValue(v.extent.depth);
-        mipLevels.PostValue(v.mipLevels);
-        arrayLayers.PostValue(v.arrayLayers);
-        depthGreaterThanOne.PostValue(v.extent.depth > 1);
-        mipLevelsGreaterThanOne.PostValue(v.mipLevels > 1);
-        arrayLayersGreaterThanOne.PostValue(v.arrayLayers > 1);
-        samples.PostValue(v.samples);
-        tiling.PostValue(v.tiling);
-        usage.PostValue(v.usage);
-        sharingMode.PostValue(v.sharingMode);
-        initialLayout.PostValue(v.initialLayout);
-    }
-
-    void Print() const
-    {
-        if(totalCount == 0)
-        {
-            return;
-        }
-
-        printf("VkImageCreateInfo (%u):\n", totalCount);
-
-        PRINT_FIELD(flags);
-        PRINT_FIELD(imageType);
-        PRINT_FIELD(format);
-        PRINT_FIELD(width);
-        PRINT_FIELD(height);
-        PRINT_FIELD(depth);
-        PRINT_FIELD(mipLevels);
-        PRINT_FIELD(arrayLayers);
-        PRINT_FIELD_NAMED(depthGreaterThanOne, "depth > 1");
-        PRINT_FIELD_NAMED(mipLevelsGreaterThanOne, "mipLevels > 1");
-        PRINT_FIELD_NAMED(arrayLayersGreaterThanOne, "arrayLayers > 1");
-        PRINT_FIELD(samples);
-        PRINT_FIELD(tiling);
-        PRINT_FIELD(usage);
-        PRINT_FIELD(sharingMode);
-        PRINT_FIELD(initialLayout);
-    }
-};
-
-struct VmaAllocationCreateInfoStats : public StructureStats
-{
-    FlagSet flags;
-    Enum usage;
-    FlagSet requiredFlags, preferredFlags;
-    Flag requiredFlagsNotZero, preferredFlagsNotZero;
-    BitMask<uint32_t> memoryTypeBits;
-    Flag poolNotNull;
-    Flag userDataNotNull;
-
-    VmaAllocationCreateInfoStats() :
-        flags(VMA_ALLOCATION_CREATE_FLAG_COUNT, VMA_ALLOCATION_CREATE_FLAG_NAMES, VMA_ALLOCATION_CREATE_FLAG_VALUES),
-        usage(VMA_MEMORY_USAGE_COUNT, VMA_MEMORY_USAGE_NAMES),
-        requiredFlags(VK_MEMORY_PROPERTY_FLAG_COUNT, VK_MEMORY_PROPERTY_FLAG_NAMES, VK_MEMORY_PROPERTY_FLAG_VALUES),
-        preferredFlags(VK_MEMORY_PROPERTY_FLAG_COUNT, VK_MEMORY_PROPERTY_FLAG_NAMES, VK_MEMORY_PROPERTY_FLAG_VALUES)
-    {
-    }
-
-    void PostValue(const VmaAllocationCreateInfo& v, size_t count = 1)
-    {
-        totalCount += (uint32_t)count;
-
-        for(size_t i = 0; i < count; ++i)
-        {
+            memoryTypeIndex.PostValue(v.memoryTypeIndex);
             flags.PostValue(v.flags);
+            blockSize.PostValue(v.blockSize);
+            minBlockCount.PostValue(v.minBlockCount);
+            maxBlockCount.PostValue(v.maxBlockCount);
+            minMaxBlockCountEqual.PostValue(v.minBlockCount == v.maxBlockCount);
+            frameInUseCount.PostValue(v.frameInUseCount);
+        }
+
+        void Print() const
+        {
+            if (totalCount == 0)
+            {
+                return;
+            }
+
+            printf("VmaPoolCreateInfo (%u):\n", totalCount);
+
+            PRINT_FIELD(memoryTypeIndex);
+            PRINT_FIELD(flags);
+            PRINT_FIELD(blockSize);
+            PRINT_FIELD(minBlockCount);
+            PRINT_FIELD(maxBlockCount);
+            PRINT_FIELD_NAMED(minMaxBlockCountEqual, "minBlockCount == maxBlockCount");
+            PRINT_FIELD(frameInUseCount);
+        }
+    };
+
+    struct VkBufferCreateInfoStats : public StructureStats
+    {
+        FlagSet flags;
+        MinMaxAvg<VkDeviceSize> size;
+        FlagSet usage;
+        Enum sharingMode;
+
+        VkBufferCreateInfoStats() : flags(VK_BUFFER_CREATE_FLAG_COUNT, VK_BUFFER_CREATE_FLAG_NAMES, VK_BUFFER_CREATE_FLAG_VALUES),
+                                    usage(VK_BUFFER_USAGE_FLAG_COUNT, VK_BUFFER_USAGE_FLAG_NAMES, VK_BUFFER_USAGE_FLAG_VALUES),
+                                    sharingMode(VK_SHARING_MODE_COUNT, VK_SHARING_MODE_NAMES)
+        {
+        }
+
+        void PostValue(const VkBufferCreateInfo &v)
+        {
+            ++totalCount;
+
+            flags.PostValue(v.flags);
+            size.PostValue(v.size);
             usage.PostValue(v.usage);
-            requiredFlags.PostValue(v.requiredFlags);
-            preferredFlags.PostValue(v.preferredFlags);
-            requiredFlagsNotZero.PostValue(v.requiredFlags != 0);
-            preferredFlagsNotZero.PostValue(v.preferredFlags != 0);
-            memoryTypeBits.PostValue(v.memoryTypeBits);
-            poolNotNull.PostValue(v.pool != VK_NULL_HANDLE);
-            userDataNotNull.PostValue(v.pUserData != nullptr);
+            sharingMode.PostValue(v.sharingMode);
         }
-    }
 
-    void Print() const
-    {
-        if(totalCount == 0)
+        void Print() const
         {
-            return;
+            if (totalCount == 0)
+            {
+                return;
+            }
+
+            printf("VkBufferCreateInfo (%u):\n", totalCount);
+
+            PRINT_FIELD(flags);
+            PRINT_FIELD(size);
+            PRINT_FIELD(usage);
+            PRINT_FIELD(sharingMode);
         }
+    };
 
-        printf("VmaAllocationCreateInfo (%u):\n", totalCount);
-
-        PRINT_FIELD(flags);
-        PRINT_FIELD(usage);
-        PRINT_FIELD(requiredFlags);
-        PRINT_FIELD(preferredFlags);
-        PRINT_FIELD_NAMED(requiredFlagsNotZero, "requiredFlags != 0");
-        PRINT_FIELD_NAMED(preferredFlagsNotZero, "preferredFlags != 0");
-        PRINT_FIELD(memoryTypeBits);
-        PRINT_FIELD_NAMED(poolNotNull, "pool != VK_NULL_HANDLE");
-        PRINT_FIELD_NAMED(userDataNotNull, "pUserData != nullptr");
-    }
-};
-
-struct VmaAllocateMemoryPagesStats : public StructureStats
-{
-    MinMaxAvg<size_t> allocationCount;
-
-    void PostValue(size_t allocationCount)
+    struct VkImageCreateInfoStats : public StructureStats
     {
-        this->allocationCount.PostValue(allocationCount);
-    }
+        FlagSet flags;
+        Enum imageType;
+        Enum format;
+        MinMaxAvg<uint32_t> width, height, depth, mipLevels, arrayLayers;
+        Flag depthGreaterThanOne, mipLevelsGreaterThanOne, arrayLayersGreaterThanOne;
+        Enum samples;
+        Enum tiling;
+        FlagSet usage;
+        Enum sharingMode;
+        Enum initialLayout;
 
-    void Print() const
-    {
-        if(totalCount == 0)
+        VkImageCreateInfoStats() : flags(VK_IMAGE_CREATE_FLAG_COUNT, VK_IMAGE_CREATE_FLAG_NAMES, VK_IMAGE_CREATE_FLAG_VALUES),
+                                   imageType(VK_IMAGE_TYPE_COUNT, VK_IMAGE_TYPE_NAMES),
+                                   format(VK_FORMAT_COUNT, VK_FORMAT_NAMES, VK_FORMAT_VALUES),
+                                   samples(VK_SAMPLE_COUNT_COUNT, VK_SAMPLE_COUNT_NAMES, VK_SAMPLE_COUNT_VALUES),
+                                   tiling(VK_IMAGE_TILING_COUNT, VK_IMAGE_TILING_NAMES),
+                                   usage(VK_IMAGE_USAGE_FLAG_COUNT, VK_IMAGE_USAGE_FLAG_NAMES, VK_IMAGE_USAGE_FLAG_VALUES),
+                                   sharingMode(VK_SHARING_MODE_COUNT, VK_SHARING_MODE_NAMES),
+                                   initialLayout(VK_IMAGE_LAYOUT_COUNT, VK_IMAGE_LAYOUT_NAMES, VK_IMAGE_LAYOUT_VALUES)
         {
-            return;
         }
 
-        printf("vmaAllocateMemoryPages (%u):\n", totalCount);
-
-        PRINT_FIELD(allocationCount);
-    }
-};
-
-struct VmaDefragmentationInfo2Stats : public StructureStats
-{
-    BitMask<VkDeviceSize> maxCpuBytesToMove;
-    BitMask<uint32_t> maxCpuAllocationsToMove;
-    BitMask<VkDeviceSize> maxGpuBytesToMove;
-    BitMask<uint32_t> maxGpuAllocationsToMove;
-    Flag commandBufferNotNull;
-    MinMaxAvg<uint32_t> allocationCount;
-    Flag allocationCountNotZero;
-    MinMaxAvg<uint32_t> poolCount;
-    Flag poolCountNotZero;
-
-    void PostValue(const VmaDefragmentationInfo2& info)
-    {
-        ++totalCount;
-
-        maxCpuBytesToMove.PostValue(info.maxCpuBytesToMove);
-        maxCpuAllocationsToMove.PostValue(info.maxCpuAllocationsToMove);
-        maxGpuBytesToMove.PostValue(info.maxGpuBytesToMove);
-        maxGpuAllocationsToMove.PostValue(info.maxGpuAllocationsToMove);
-        commandBufferNotNull.PostValue(info.commandBuffer != VK_NULL_HANDLE);
-        allocationCount.PostValue(info.allocationCount);
-        allocationCountNotZero.PostValue(info.allocationCount != 0);
-        poolCount.PostValue(info.poolCount);
-        poolCountNotZero.PostValue(info.poolCount != 0);
-    }
-
-    void Print() const
-    {
-        if(totalCount == 0)
+        void PostValue(const VkImageCreateInfo &v)
         {
-            return;
+            ++totalCount;
+
+            flags.PostValue(v.flags);
+            imageType.PostValue(v.imageType);
+            format.PostValue(v.format);
+            width.PostValue(v.extent.width);
+            height.PostValue(v.extent.height);
+            depth.PostValue(v.extent.depth);
+            mipLevels.PostValue(v.mipLevels);
+            arrayLayers.PostValue(v.arrayLayers);
+            depthGreaterThanOne.PostValue(v.extent.depth > 1);
+            mipLevelsGreaterThanOne.PostValue(v.mipLevels > 1);
+            arrayLayersGreaterThanOne.PostValue(v.arrayLayers > 1);
+            samples.PostValue(v.samples);
+            tiling.PostValue(v.tiling);
+            usage.PostValue(v.usage);
+            sharingMode.PostValue(v.sharingMode);
+            initialLayout.PostValue(v.initialLayout);
         }
 
-        printf("VmaDefragmentationInfo2 (%u):\n", totalCount);
+        void Print() const
+        {
+            if (totalCount == 0)
+            {
+                return;
+            }
 
-        PRINT_FIELD(maxCpuBytesToMove);
-        PRINT_FIELD(maxCpuAllocationsToMove);
-        PRINT_FIELD(maxGpuBytesToMove);
-        PRINT_FIELD(maxGpuAllocationsToMove);
-        PRINT_FIELD_NAMED(commandBufferNotNull, "commandBuffer != VK_NULL_HANDLE");
-        PRINT_FIELD(allocationCount);
-        PRINT_FIELD_NAMED(allocationCountNotZero, "allocationCount > 0");
-        PRINT_FIELD(poolCount);
-        PRINT_FIELD_NAMED(poolCountNotZero, "poolCount > 0");
-    }
-};
+            printf("VkImageCreateInfo (%u):\n", totalCount);
+
+            PRINT_FIELD(flags);
+            PRINT_FIELD(imageType);
+            PRINT_FIELD(format);
+            PRINT_FIELD(width);
+            PRINT_FIELD(height);
+            PRINT_FIELD(depth);
+            PRINT_FIELD(mipLevels);
+            PRINT_FIELD(arrayLayers);
+            PRINT_FIELD_NAMED(depthGreaterThanOne, "depth > 1");
+            PRINT_FIELD_NAMED(mipLevelsGreaterThanOne, "mipLevels > 1");
+            PRINT_FIELD_NAMED(arrayLayersGreaterThanOne, "arrayLayers > 1");
+            PRINT_FIELD(samples);
+            PRINT_FIELD(tiling);
+            PRINT_FIELD(usage);
+            PRINT_FIELD(sharingMode);
+            PRINT_FIELD(initialLayout);
+        }
+    };
+
+    struct VmaAllocationCreateInfoStats : public StructureStats
+    {
+        FlagSet flags;
+        Enum usage;
+        FlagSet requiredFlags, preferredFlags;
+        Flag requiredFlagsNotZero, preferredFlagsNotZero;
+        BitMask<uint32_t> memoryTypeBits;
+        Flag poolNotNull;
+        Flag userDataNotNull;
+
+        VmaAllocationCreateInfoStats() : flags(VMA_ALLOCATION_CREATE_FLAG_COUNT, VMA_ALLOCATION_CREATE_FLAG_NAMES, VMA_ALLOCATION_CREATE_FLAG_VALUES),
+                                         usage(VMA_MEMORY_USAGE_COUNT, VMA_MEMORY_USAGE_NAMES),
+                                         requiredFlags(VK_MEMORY_PROPERTY_FLAG_COUNT, VK_MEMORY_PROPERTY_FLAG_NAMES, VK_MEMORY_PROPERTY_FLAG_VALUES),
+                                         preferredFlags(VK_MEMORY_PROPERTY_FLAG_COUNT, VK_MEMORY_PROPERTY_FLAG_NAMES, VK_MEMORY_PROPERTY_FLAG_VALUES)
+        {
+        }
+
+        void PostValue(const VmaAllocationCreateInfo &v, size_t count = 1)
+        {
+            totalCount += (uint32_t)count;
+
+            for (size_t i = 0; i < count; ++i)
+            {
+                flags.PostValue(v.flags);
+                usage.PostValue(v.usage);
+                requiredFlags.PostValue(v.requiredFlags);
+                preferredFlags.PostValue(v.preferredFlags);
+                requiredFlagsNotZero.PostValue(v.requiredFlags != 0);
+                preferredFlagsNotZero.PostValue(v.preferredFlags != 0);
+                memoryTypeBits.PostValue(v.memoryTypeBits);
+                poolNotNull.PostValue(v.pool != VK_NULL_HANDLE);
+                userDataNotNull.PostValue(v.pUserData != nullptr);
+            }
+        }
+
+        void Print() const
+        {
+            if (totalCount == 0)
+            {
+                return;
+            }
+
+            printf("VmaAllocationCreateInfo (%u):\n", totalCount);
+
+            PRINT_FIELD(flags);
+            PRINT_FIELD(usage);
+            PRINT_FIELD(requiredFlags);
+            PRINT_FIELD(preferredFlags);
+            PRINT_FIELD_NAMED(requiredFlagsNotZero, "requiredFlags != 0");
+            PRINT_FIELD_NAMED(preferredFlagsNotZero, "preferredFlags != 0");
+            PRINT_FIELD(memoryTypeBits);
+            PRINT_FIELD_NAMED(poolNotNull, "pool != VK_NULL_HANDLE");
+            PRINT_FIELD_NAMED(userDataNotNull, "pUserData != nullptr");
+        }
+    };
+
+    struct VmaAllocateMemoryPagesStats : public StructureStats
+    {
+        MinMaxAvg<size_t> allocationCount;
+
+        void PostValue(size_t allocationCount)
+        {
+            this->allocationCount.PostValue(allocationCount);
+        }
+
+        void Print() const
+        {
+            if (totalCount == 0)
+            {
+                return;
+            }
+
+            printf("vmaAllocateMemoryPages (%u):\n", totalCount);
+
+            PRINT_FIELD(allocationCount);
+        }
+    };
+
+    struct VmaDefragmentationInfo2Stats : public StructureStats
+    {
+        BitMask<VkDeviceSize> maxCpuBytesToMove;
+        BitMask<uint32_t> maxCpuAllocationsToMove;
+        BitMask<VkDeviceSize> maxGpuBytesToMove;
+        BitMask<uint32_t> maxGpuAllocationsToMove;
+        Flag commandBufferNotNull;
+        MinMaxAvg<uint32_t> allocationCount;
+        Flag allocationCountNotZero;
+        MinMaxAvg<uint32_t> poolCount;
+        Flag poolCountNotZero;
+
+        void PostValue(const VmaDefragmentationInfo2 &info)
+        {
+            ++totalCount;
+
+            maxCpuBytesToMove.PostValue(info.maxCpuBytesToMove);
+            maxCpuAllocationsToMove.PostValue(info.maxCpuAllocationsToMove);
+            maxGpuBytesToMove.PostValue(info.maxGpuBytesToMove);
+            maxGpuAllocationsToMove.PostValue(info.maxGpuAllocationsToMove);
+            commandBufferNotNull.PostValue(info.commandBuffer != VK_NULL_HANDLE);
+            allocationCount.PostValue(info.allocationCount);
+            allocationCountNotZero.PostValue(info.allocationCount != 0);
+            poolCount.PostValue(info.poolCount);
+            poolCountNotZero.PostValue(info.poolCount != 0);
+        }
+
+        void Print() const
+        {
+            if (totalCount == 0)
+            {
+                return;
+            }
+
+            printf("VmaDefragmentationInfo2 (%u):\n", totalCount);
+
+            PRINT_FIELD(maxCpuBytesToMove);
+            PRINT_FIELD(maxCpuAllocationsToMove);
+            PRINT_FIELD(maxGpuBytesToMove);
+            PRINT_FIELD(maxGpuAllocationsToMove);
+            PRINT_FIELD_NAMED(commandBufferNotNull, "commandBuffer != VK_NULL_HANDLE");
+            PRINT_FIELD(allocationCount);
+            PRINT_FIELD_NAMED(allocationCountNotZero, "allocationCount > 0");
+            PRINT_FIELD(poolCount);
+            PRINT_FIELD_NAMED(poolCountNotZero, "poolCount > 0");
+        }
+    };
 
 #undef PRINT_FIELD_NAMED
 #undef PRINT_FIELD
@@ -671,15 +665,15 @@ static RangeSequence<size_t> g_LineRanges;
 static bool g_UserDataEnabled = true;
 static bool g_MemStatsEnabled = false;
 VULKAN_EXTENSION_REQUEST g_VK_LAYER_LUNARG_standard_validation = VULKAN_EXTENSION_REQUEST::DEFAULT;
-VULKAN_EXTENSION_REQUEST g_VK_EXT_memory_budget_request        = VULKAN_EXTENSION_REQUEST::DEFAULT;
+VULKAN_EXTENSION_REQUEST g_VK_EXT_memory_budget_request = VULKAN_EXTENSION_REQUEST::DEFAULT;
 
 struct StatsAfterLineEntry
 {
     size_t line;
     bool detailed;
 
-    bool operator<(const StatsAfterLineEntry& rhs) const { return line < rhs.line; }
-    bool operator==(const StatsAfterLineEntry& rhs) const { return line == rhs.line; }
+    bool operator<(const StatsAfterLineEntry &rhs) const { return line < rhs.line; }
+    bool operator==(const StatsAfterLineEntry &rhs) const { return line == rhs.line; }
 };
 static std::vector<StatsAfterLineEntry> g_DumpStatsAfterLine;
 static std::vector<size_t> g_DefragmentAfterLine;
@@ -689,7 +683,7 @@ static size_t g_DefragmentAfterLineNextIndex = 0;
 
 static bool ValidateFileVersion()
 {
-    if(GetVersionMajor(g_FileVersion) == 1 &&
+    if (GetVersionMajor(g_FileVersion) == 1 &&
         GetVersionMinor(g_FileVersion) <= 8)
     {
         return true;
@@ -698,12 +692,12 @@ static bool ValidateFileVersion()
     return false;
 }
 
-static bool ParseFileVersion(const StrRange& s)
+static bool ParseFileVersion(const StrRange &s)
 {
     CsvSplit csvSplit;
     csvSplit.Set(s, 2);
     uint32_t major, minor;
-    if(csvSplit.GetCount() == 2 &&
+    if (csvSplit.GetCount() == 2 &&
         StrRangeToUint(csvSplit.GetRange(0), major) &&
         StrRangeToUint(csvSplit.GetRange(1), minor))
     {
@@ -732,7 +726,7 @@ public:
     void PrintMemStats() const;
     void PrintDetailedStats() const;
 
-    const size_t* GetFunctionCallCount() const { return m_FunctionCallCount; }
+    const size_t *GetFunctionCallCount() const { return m_FunctionCallCount; }
     size_t GetImageCreationCount(uint32_t imgClass) const { return m_ImageCreationCount[imgClass]; }
     size_t GetLinearImageCreationCount() const { return m_LinearImageCreationCount; }
     size_t GetBufferCreationCount(uint32_t bufClass) const { return m_BufferCreationCount[bufClass]; }
@@ -741,25 +735,25 @@ public:
     size_t GetBufferCreationCount() const { return (size_t)m_VkBufferCreateInfo.totalCount; }
 
     void RegisterFunctionCall(VMA_FUNCTION func);
-    void RegisterCreateImage(const VkImageCreateInfo& info);
-    void RegisterCreateBuffer(const VkBufferCreateInfo& info);
-    void RegisterCreatePool(const VmaPoolCreateInfo& info);
-    void RegisterCreateAllocation(const VmaAllocationCreateInfo& info, size_t allocCount = 1);
+    void RegisterCreateImage(const VkImageCreateInfo &info);
+    void RegisterCreateBuffer(const VkBufferCreateInfo &info);
+    void RegisterCreatePool(const VmaPoolCreateInfo &info);
+    void RegisterCreateAllocation(const VmaAllocationCreateInfo &info, size_t allocCount = 1);
     void RegisterCreateLostAllocation() { ++m_CreateLostAllocationCount; }
     void RegisterAllocateMemoryPages(size_t allocCount) { m_VmaAllocateMemoryPages.PostValue(allocCount); }
-    void RegisterDefragmentation(const VmaDefragmentationInfo2& info);
+    void RegisterDefragmentation(const VmaDefragmentationInfo2 &info);
 
     void RegisterDeviceMemoryAllocation(uint32_t memoryType, VkDeviceSize size);
-    void UpdateMemStats(const VmaStats& currStats);
+    void UpdateMemStats(const VmaStats &currStats);
 
 private:
     uint32_t m_MemHeapCount = 0;
     uint32_t m_MemTypeCount = 0;
 
     size_t m_FunctionCallCount[(size_t)VMA_FUNCTION::Count] = {};
-    size_t m_ImageCreationCount[4] = { };
+    size_t m_ImageCreationCount[4] = {};
     size_t m_LinearImageCreationCount = 0;
-    size_t m_BufferCreationCount[4] = { };
+    size_t m_BufferCreationCount[4] = {};
 
     struct DeviceMemStatInfo
     {
@@ -771,7 +765,7 @@ private:
         DeviceMemStatInfo memoryType[VK_MAX_MEMORY_TYPES];
         DeviceMemStatInfo total;
     } m_DeviceMemStats;
-    
+
     // Structure similar to VmaStatInfo, but not the same.
     struct MemStatInfo
     {
@@ -797,28 +791,28 @@ private:
     DetailedStats::VmaAllocateMemoryPagesStats m_VmaAllocateMemoryPages;
     DetailedStats::VmaDefragmentationInfo2Stats m_VmaDefragmentationInfo2;
 
-    void UpdateMemStatInfo(MemStatInfo& inoutPeakInfo, const VmaStatInfo& currInfo);
-    static void PrintMemStatInfo(const MemStatInfo& info);
+    void UpdateMemStatInfo(MemStatInfo &inoutPeakInfo, const VmaStatInfo &currInfo);
+    static void PrintMemStatInfo(const MemStatInfo &info);
 };
 
 // Hack for global AllocateDeviceMemoryCallback.
-static Statistics* g_Statistics;
+static Statistics *g_Statistics;
 
 static void VKAPI_CALL AllocateDeviceMemoryCallback(
-    VmaAllocator      allocator,
-    uint32_t          memoryType,
-    VkDeviceMemory    memory,
-    VkDeviceSize      size)
+    VmaAllocator allocator,
+    uint32_t memoryType,
+    VkDeviceMemory memory,
+    VkDeviceSize size)
 {
     g_Statistics->RegisterDeviceMemoryAllocation(memoryType, size);
 }
 
 /// Callback function called before vkFreeMemory.
 static void VKAPI_CALL FreeDeviceMemoryCallback(
-    VmaAllocator      allocator,
-    uint32_t          memoryType,
-    VkDeviceMemory    memory,
-    VkDeviceSize      size)
+    VmaAllocator allocator,
+    uint32_t memoryType,
+    VkDeviceMemory memory,
+    VkDeviceSize size)
 {
     // Nothing.
 }
@@ -828,22 +822,22 @@ uint32_t Statistics::BufferUsageToClass(uint32_t usage)
     // Buffer is used as source of data for fixed-function stage of graphics pipeline.
     // It's indirect, vertex, or index buffer.
     if ((usage & (VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT |
-        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-        VK_BUFFER_USAGE_INDEX_BUFFER_BIT)) != 0)
+                  VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+                  VK_BUFFER_USAGE_INDEX_BUFFER_BIT)) != 0)
     {
         return 0;
     }
     // Buffer is accessed by shaders for load/store/atomic.
     // Aka "UAV"
     else if ((usage & (VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
-        VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT)) != 0)
+                       VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT)) != 0)
     {
         return 1;
     }
     // Buffer is accessed by shaders for reading uniform data.
     // Aka "constant buffer"
     else if ((usage & (VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT |
-    VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT)) != 0)
+                       VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT)) != 0)
     {
         return 2;
     }
@@ -866,8 +860,8 @@ uint32_t Statistics::ImageUsageToClass(uint32_t usage)
     // Image is used as other type of attachment.
     // Aka "render target"
     else if ((usage & (VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
-        VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) != 0)
+                       VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+                       VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)) != 0)
     {
         return 1;
     }
@@ -911,11 +905,11 @@ void Statistics::PrintDeviceMemStats() const
 {
     printf("Successful device memory allocations:\n");
     printf("    Total: count = %zu, total size = %llu\n",
-        m_DeviceMemStats.total.allocationCount, m_DeviceMemStats.total.allocationTotalSize);
-    for(uint32_t i = 0; i < m_MemTypeCount; ++i)
+           m_DeviceMemStats.total.allocationCount, m_DeviceMemStats.total.allocationTotalSize);
+    for (uint32_t i = 0; i < m_MemTypeCount; ++i)
     {
         printf("    Memory type %u: count = %zu, total size = %llu\n",
-            i, m_DeviceMemStats.memoryType[i].allocationCount, m_DeviceMemStats.memoryType[i].allocationTotalSize);
+               i, m_DeviceMemStats.memoryType[i].allocationCount, m_DeviceMemStats.memoryType[i].allocationTotalSize);
     }
 }
 
@@ -926,20 +920,20 @@ void Statistics::PrintMemStats() const
     printf("    Total:\n");
     PrintMemStatInfo(m_PeakMemStats.total);
 
-    for(uint32_t i = 0; i < m_MemHeapCount; ++i)
+    for (uint32_t i = 0; i < m_MemHeapCount; ++i)
     {
-        const MemStatInfo& info = m_PeakMemStats.memoryHeap[i];
-        if(info.blockCount > 0 || info.totalBytes > 0)
+        const MemStatInfo &info = m_PeakMemStats.memoryHeap[i];
+        if (info.blockCount > 0 || info.totalBytes > 0)
         {
             printf("    Heap %u:\n", i);
             PrintMemStatInfo(info);
         }
     }
 
-    for(uint32_t i = 0; i < m_MemTypeCount; ++i)
+    for (uint32_t i = 0; i < m_MemTypeCount; ++i)
     {
-        const MemStatInfo& info = m_PeakMemStats.memoryType[i];
-        if(info.blockCount > 0 || info.totalBytes > 0)
+        const MemStatInfo &info = m_PeakMemStats.memoryType[i];
+        if (info.blockCount > 0 || info.totalBytes > 0)
         {
             printf("    Type %u:\n", i);
             PrintMemStatInfo(info);
@@ -962,9 +956,9 @@ void Statistics::RegisterFunctionCall(VMA_FUNCTION func)
     ++m_FunctionCallCount[(size_t)func];
 }
 
-void Statistics::RegisterCreateImage(const VkImageCreateInfo& info)
+void Statistics::RegisterCreateImage(const VkImageCreateInfo &info)
 {
-    if(info.tiling == VK_IMAGE_TILING_LINEAR)
+    if (info.tiling == VK_IMAGE_TILING_LINEAR)
         ++m_LinearImageCreationCount;
     else
     {
@@ -975,7 +969,7 @@ void Statistics::RegisterCreateImage(const VkImageCreateInfo& info)
     m_VkImageCreateInfo.PostValue(info);
 }
 
-void Statistics::RegisterCreateBuffer(const VkBufferCreateInfo& info)
+void Statistics::RegisterCreateBuffer(const VkBufferCreateInfo &info)
 {
     const uint32_t bufClass = BufferUsageToClass(info.usage);
     ++m_BufferCreationCount[bufClass];
@@ -983,31 +977,31 @@ void Statistics::RegisterCreateBuffer(const VkBufferCreateInfo& info)
     m_VkBufferCreateInfo.PostValue(info);
 }
 
-void Statistics::RegisterCreatePool(const VmaPoolCreateInfo& info)
+void Statistics::RegisterCreatePool(const VmaPoolCreateInfo &info)
 {
     m_VmaPoolCreateInfo.PostValue(info);
 }
 
-void Statistics::RegisterCreateAllocation(const VmaAllocationCreateInfo& info, size_t allocCount)
+void Statistics::RegisterCreateAllocation(const VmaAllocationCreateInfo &info, size_t allocCount)
 {
     m_VmaAllocationCreateInfo.PostValue(info, allocCount);
 }
 
-void Statistics::RegisterDefragmentation(const VmaDefragmentationInfo2& info)
+void Statistics::RegisterDefragmentation(const VmaDefragmentationInfo2 &info)
 {
     m_VmaDefragmentationInfo2.PostValue(info);
 }
 
-void Statistics::UpdateMemStats(const VmaStats& currStats)
+void Statistics::UpdateMemStats(const VmaStats &currStats)
 {
     UpdateMemStatInfo(m_PeakMemStats.total, currStats.total);
-    
-    for(uint32_t i = 0; i < m_MemHeapCount; ++i)
+
+    for (uint32_t i = 0; i < m_MemHeapCount; ++i)
     {
         UpdateMemStatInfo(m_PeakMemStats.memoryHeap[i], currStats.memoryHeap[i]);
     }
 
-    for(uint32_t i = 0; i < m_MemTypeCount; ++i)
+    for (uint32_t i = 0; i < m_MemTypeCount; ++i)
     {
         UpdateMemStatInfo(m_PeakMemStats.memoryType[i], currStats.memoryType[i]);
     }
@@ -1022,12 +1016,12 @@ void Statistics::RegisterDeviceMemoryAllocation(uint32_t memoryType, VkDeviceSiz
     m_DeviceMemStats.memoryType[memoryType].allocationTotalSize += size;
 }
 
-void Statistics::UpdateMemStatInfo(MemStatInfo& inoutPeakInfo, const VmaStatInfo& currInfo)
+void Statistics::UpdateMemStatInfo(MemStatInfo &inoutPeakInfo, const VmaStatInfo &currInfo)
 {
 #define SET_PEAK(inoutDst, src) \
-    if((src) > (inoutDst)) \
-    { \
-        (inoutDst) = (src); \
+    if ((src) > (inoutDst))     \
+    {                           \
+        (inoutDst) = (src);     \
     }
 
     SET_PEAK(inoutPeakInfo.blockCount, currInfo.blockCount);
@@ -1040,16 +1034,16 @@ void Statistics::UpdateMemStatInfo(MemStatInfo& inoutPeakInfo, const VmaStatInfo
 #undef SET_PEAK
 }
 
-void Statistics::PrintMemStatInfo(const MemStatInfo& info)
+void Statistics::PrintMemStatInfo(const MemStatInfo &info)
 {
     printf("        Peak blocks %u, allocations %u, unused ranges %u\n",
-        info.blockCount,
-        info.allocationCount,
-        info.unusedRangeCount);
+           info.blockCount,
+           info.allocationCount,
+           info.unusedRangeCount);
     printf("        Peak total bytes %llu, used bytes %llu, unused bytes %llu\n",
-        info.totalBytes,
-        info.usedBytes,
-        info.unusedBytes);
+           info.totalBytes,
+           info.usedBytes,
+           info.unusedBytes);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1059,12 +1053,12 @@ class ConfigurationParser
 {
 public:
     ConfigurationParser();
-    
-    bool Parse(LineSplit& lineSplit);
+
+    bool Parse(LineSplit &lineSplit);
 
     void Compare(
-        const VkPhysicalDeviceProperties& currDevProps,
-        const VkPhysicalDeviceMemoryProperties& currMemProps,
+        const VkPhysicalDeviceProperties &currDevProps,
+        const VkPhysicalDeviceMemoryProperties &currMemProps,
         uint32_t vulkanApiVersion,
         bool currMemoryBudgetEnabled);
 
@@ -1105,49 +1099,48 @@ private:
     void SetOption(
         size_t lineNumber,
         OPTION option,
-        const StrRange& str);
+        const StrRange &str);
     void EnsureWarningHeader();
-    void CompareOption(VERBOSITY minVerbosity, const char* name,
-        OPTION option, uint32_t currValue);
-    void CompareOption(VERBOSITY minVerbosity, const char* name,
-        OPTION option, uint64_t currValue);
-    void CompareOption(VERBOSITY minVerbosity, const char* name,
-        OPTION option, bool currValue);
-    void CompareOption(VERBOSITY minVerbosity, const char* name,
-        OPTION option, const char* currValue);
+    void CompareOption(VERBOSITY minVerbosity, const char *name,
+                       OPTION option, uint32_t currValue);
+    void CompareOption(VERBOSITY minVerbosity, const char *name,
+                       OPTION option, uint64_t currValue);
+    void CompareOption(VERBOSITY minVerbosity, const char *name,
+                       OPTION option, bool currValue);
+    void CompareOption(VERBOSITY minVerbosity, const char *name,
+                       OPTION option, const char *currValue);
     void CompareMemProps(
-        const VkPhysicalDeviceMemoryProperties& currMemProps);
+        const VkPhysicalDeviceMemoryProperties &currMemProps);
 };
 
-ConfigurationParser::ConfigurationParser() :
-    m_OptionSet((size_t)OPTION::Count),
-    m_OptionValue((size_t)OPTION::Count)
+ConfigurationParser::ConfigurationParser() : m_OptionSet((size_t)OPTION::Count),
+                                             m_OptionValue((size_t)OPTION::Count)
 {
     ZeroMemory(&m_MemProps, sizeof(m_MemProps));
 }
 
-bool ConfigurationParser::Parse(LineSplit& lineSplit)
+bool ConfigurationParser::Parse(LineSplit &lineSplit)
 {
-    for(auto& it : m_OptionSet)
+    for (auto &it : m_OptionSet)
     {
         it = false;
     }
-    for(auto& it : m_OptionValue)
+    for (auto &it : m_OptionValue)
     {
         it.clear();
     }
 
     StrRange line;
 
-    if(!lineSplit.GetNextLine(line) && !StrRangeEq(line, "Config,Begin"))
+    if (!lineSplit.GetNextLine(line) && !StrRangeEq(line, "Config,Begin"))
     {
         return false;
     }
 
     CsvSplit csvSplit;
-    while(lineSplit.GetNextLine(line))
+    while (lineSplit.GetNextLine(line))
     {
-        if(StrRangeEq(line, "Config,End"))
+        if (StrRangeEq(line, "Config,End"))
         {
             break;
         }
@@ -1155,32 +1148,32 @@ bool ConfigurationParser::Parse(LineSplit& lineSplit)
         const size_t currLineNumber = lineSplit.GetNextLineIndex();
 
         csvSplit.Set(line);
-        if(csvSplit.GetCount() == 0)
+        if (csvSplit.GetCount() == 0)
         {
             return false;
         }
 
         const StrRange optionName = csvSplit.GetRange(0);
-        if(StrRangeEq(optionName, "VulkanApiVersion"))
+        if (StrRangeEq(optionName, "VulkanApiVersion"))
         {
             SetOption(currLineNumber, OPTION::VulkanApiVersion, StrRange{csvSplit.GetRange(1).beg, csvSplit.GetRange(2).end});
         }
-        else if(StrRangeEq(optionName, "PhysicalDevice"))
+        else if (StrRangeEq(optionName, "PhysicalDevice"))
         {
-            if(csvSplit.GetCount() >= 3)
+            if (csvSplit.GetCount() >= 3)
             {
                 const StrRange subOptionName = csvSplit.GetRange(1);
-                if(StrRangeEq(subOptionName, "apiVersion"))
+                if (StrRangeEq(subOptionName, "apiVersion"))
                     SetOption(currLineNumber, OPTION::PhysicalDevice_apiVersion, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "driverVersion"))
+                else if (StrRangeEq(subOptionName, "driverVersion"))
                     SetOption(currLineNumber, OPTION::PhysicalDevice_driverVersion, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "vendorID"))
+                else if (StrRangeEq(subOptionName, "vendorID"))
                     SetOption(currLineNumber, OPTION::PhysicalDevice_vendorID, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "deviceID"))
+                else if (StrRangeEq(subOptionName, "deviceID"))
                     SetOption(currLineNumber, OPTION::PhysicalDevice_deviceID, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "deviceType"))
+                else if (StrRangeEq(subOptionName, "deviceType"))
                     SetOption(currLineNumber, OPTION::PhysicalDevice_deviceType, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "deviceName"))
+                else if (StrRangeEq(subOptionName, "deviceName"))
                     SetOption(currLineNumber, OPTION::PhysicalDevice_deviceName, StrRange(csvSplit.GetRange(2).beg, line.end));
                 else
                     printf("Line %zu: Unrecognized configuration option.\n", currLineNumber);
@@ -1188,16 +1181,16 @@ bool ConfigurationParser::Parse(LineSplit& lineSplit)
             else
                 printf("Line %zu: Too few columns.\n", currLineNumber);
         }
-        else if(StrRangeEq(optionName, "PhysicalDeviceLimits"))
+        else if (StrRangeEq(optionName, "PhysicalDeviceLimits"))
         {
-            if(csvSplit.GetCount() >= 3)
+            if (csvSplit.GetCount() >= 3)
             {
                 const StrRange subOptionName = csvSplit.GetRange(1);
-                if(StrRangeEq(subOptionName, "maxMemoryAllocationCount"))
+                if (StrRangeEq(subOptionName, "maxMemoryAllocationCount"))
                     SetOption(currLineNumber, OPTION::PhysicalDeviceLimits_maxMemoryAllocationCount, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "bufferImageGranularity"))
+                else if (StrRangeEq(subOptionName, "bufferImageGranularity"))
                     SetOption(currLineNumber, OPTION::PhysicalDeviceLimits_bufferImageGranularity, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "nonCoherentAtomSize"))
+                else if (StrRangeEq(subOptionName, "nonCoherentAtomSize"))
                     SetOption(currLineNumber, OPTION::PhysicalDeviceLimits_nonCoherentAtomSize, csvSplit.GetRange(2));
                 else
                     printf("Line %zu: Unrecognized configuration option.\n", currLineNumber);
@@ -1205,18 +1198,18 @@ bool ConfigurationParser::Parse(LineSplit& lineSplit)
             else
                 printf("Line %zu: Too few columns.\n", currLineNumber);
         }
-        else if(StrRangeEq(optionName, "Extension"))
+        else if (StrRangeEq(optionName, "Extension"))
         {
-            if(csvSplit.GetCount() >= 3)
+            if (csvSplit.GetCount() >= 3)
             {
                 const StrRange subOptionName = csvSplit.GetRange(1);
-                if(StrRangeEq(subOptionName, "VK_KHR_dedicated_allocation"))
+                if (StrRangeEq(subOptionName, "VK_KHR_dedicated_allocation"))
                 {
                     // Ignore because this extension is promoted to Vulkan 1.1.
                 }
-                else if(StrRangeEq(subOptionName, "VK_KHR_bind_memory2"))
+                else if (StrRangeEq(subOptionName, "VK_KHR_bind_memory2"))
                     SetOption(currLineNumber, OPTION::Extension_VK_KHR_bind_memory2, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "VK_EXT_memory_budget"))
+                else if (StrRangeEq(subOptionName, "VK_EXT_memory_budget"))
                     SetOption(currLineNumber, OPTION::Extension_VK_EXT_memory_budget, csvSplit.GetRange(2));
                 else
                     printf("Line %zu: Unrecognized configuration option.\n", currLineNumber);
@@ -1224,28 +1217,28 @@ bool ConfigurationParser::Parse(LineSplit& lineSplit)
             else
                 printf("Line %zu: Too few columns.\n", currLineNumber);
         }
-        else if(StrRangeEq(optionName, "Macro"))
+        else if (StrRangeEq(optionName, "Macro"))
         {
-            if(csvSplit.GetCount() >= 3)
+            if (csvSplit.GetCount() >= 3)
             {
                 const StrRange subOptionName = csvSplit.GetRange(1);
-                if(StrRangeEq(subOptionName, "VMA_DEBUG_ALWAYS_DEDICATED_MEMORY"))
+                if (StrRangeEq(subOptionName, "VMA_DEBUG_ALWAYS_DEDICATED_MEMORY"))
                     SetOption(currLineNumber, OPTION::Macro_VMA_DEBUG_ALWAYS_DEDICATED_MEMORY, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "VMA_DEBUG_ALIGNMENT"))
+                else if (StrRangeEq(subOptionName, "VMA_DEBUG_ALIGNMENT"))
                     SetOption(currLineNumber, OPTION::Macro_VMA_DEBUG_ALIGNMENT, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "VMA_DEBUG_MARGIN"))
+                else if (StrRangeEq(subOptionName, "VMA_DEBUG_MARGIN"))
                     SetOption(currLineNumber, OPTION::Macro_VMA_DEBUG_MARGIN, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "VMA_DEBUG_INITIALIZE_ALLOCATIONS"))
+                else if (StrRangeEq(subOptionName, "VMA_DEBUG_INITIALIZE_ALLOCATIONS"))
                     SetOption(currLineNumber, OPTION::Macro_VMA_DEBUG_INITIALIZE_ALLOCATIONS, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "VMA_DEBUG_DETECT_CORRUPTION"))
+                else if (StrRangeEq(subOptionName, "VMA_DEBUG_DETECT_CORRUPTION"))
                     SetOption(currLineNumber, OPTION::Macro_VMA_DEBUG_DETECT_CORRUPTION, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "VMA_DEBUG_GLOBAL_MUTEX"))
+                else if (StrRangeEq(subOptionName, "VMA_DEBUG_GLOBAL_MUTEX"))
                     SetOption(currLineNumber, OPTION::Macro_VMA_DEBUG_GLOBAL_MUTEX, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "VMA_DEBUG_MIN_BUFFER_IMAGE_GRANULARITY"))
+                else if (StrRangeEq(subOptionName, "VMA_DEBUG_MIN_BUFFER_IMAGE_GRANULARITY"))
                     SetOption(currLineNumber, OPTION::Macro_VMA_DEBUG_MIN_BUFFER_IMAGE_GRANULARITY, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "VMA_SMALL_HEAP_MAX_SIZE"))
+                else if (StrRangeEq(subOptionName, "VMA_SMALL_HEAP_MAX_SIZE"))
                     SetOption(currLineNumber, OPTION::Macro_VMA_SMALL_HEAP_MAX_SIZE, csvSplit.GetRange(2));
-                else if(StrRangeEq(subOptionName, "VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE"))
+                else if (StrRangeEq(subOptionName, "VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE"))
                     SetOption(currLineNumber, OPTION::Macro_VMA_DEFAULT_LARGE_HEAP_BLOCK_SIZE, csvSplit.GetRange(2));
                 else
                     printf("Line %zu: Unrecognized configuration option.\n", currLineNumber);
@@ -1253,49 +1246,49 @@ bool ConfigurationParser::Parse(LineSplit& lineSplit)
             else
                 printf("Line %zu: Too few columns.\n", currLineNumber);
         }
-        else if(StrRangeEq(optionName, "PhysicalDeviceMemory"))
+        else if (StrRangeEq(optionName, "PhysicalDeviceMemory"))
         {
             uint32_t value = 0;
-            if(csvSplit.GetCount() == 3 && StrRangeEq(csvSplit.GetRange(1), "HeapCount") &&
+            if (csvSplit.GetCount() == 3 && StrRangeEq(csvSplit.GetRange(1), "HeapCount") &&
                 StrRangeToUint(csvSplit.GetRange(2), value))
             {
                 m_MemProps.memoryHeapCount = value;
             }
-            else if(csvSplit.GetCount() == 3 && StrRangeEq(csvSplit.GetRange(1), "TypeCount") &&
-                StrRangeToUint(csvSplit.GetRange(2), value))
+            else if (csvSplit.GetCount() == 3 && StrRangeEq(csvSplit.GetRange(1), "TypeCount") &&
+                     StrRangeToUint(csvSplit.GetRange(2), value))
             {
                 m_MemProps.memoryTypeCount = value;
             }
-            else if(csvSplit.GetCount() == 5 && StrRangeEq(csvSplit.GetRange(1), "Heap") &&
-                StrRangeToUint(csvSplit.GetRange(2), value) &&
-                value < m_MemProps.memoryHeapCount)
+            else if (csvSplit.GetCount() == 5 && StrRangeEq(csvSplit.GetRange(1), "Heap") &&
+                     StrRangeToUint(csvSplit.GetRange(2), value) &&
+                     value < m_MemProps.memoryHeapCount)
             {
-                if(StrRangeEq(csvSplit.GetRange(3), "size") &&
+                if (StrRangeEq(csvSplit.GetRange(3), "size") &&
                     StrRangeToUint(csvSplit.GetRange(4), m_MemProps.memoryHeaps[value].size))
                 {
-                     // Parsed.
+                    // Parsed.
                 }
-                else if(StrRangeEq(csvSplit.GetRange(3), "flags") &&
-                    StrRangeToUint(csvSplit.GetRange(4), m_MemProps.memoryHeaps[value].flags))
+                else if (StrRangeEq(csvSplit.GetRange(3), "flags") &&
+                         StrRangeToUint(csvSplit.GetRange(4), m_MemProps.memoryHeaps[value].flags))
                 {
-                     // Parsed.
+                    // Parsed.
                 }
                 else
                     printf("Line %zu: Invalid configuration option.\n", currLineNumber);
             }
-            else if(csvSplit.GetCount() == 5 && StrRangeEq(csvSplit.GetRange(1), "Type") &&
-                StrRangeToUint(csvSplit.GetRange(2), value) &&
-                value < m_MemProps.memoryTypeCount)
+            else if (csvSplit.GetCount() == 5 && StrRangeEq(csvSplit.GetRange(1), "Type") &&
+                     StrRangeToUint(csvSplit.GetRange(2), value) &&
+                     value < m_MemProps.memoryTypeCount)
             {
-                if(StrRangeEq(csvSplit.GetRange(3), "heapIndex") &&
+                if (StrRangeEq(csvSplit.GetRange(3), "heapIndex") &&
                     StrRangeToUint(csvSplit.GetRange(4), m_MemProps.memoryTypes[value].heapIndex))
                 {
-                     // Parsed.
+                    // Parsed.
                 }
-                else if(StrRangeEq(csvSplit.GetRange(3), "propertyFlags") &&
-                    StrRangeToUint(csvSplit.GetRange(4), m_MemProps.memoryTypes[value].propertyFlags))
+                else if (StrRangeEq(csvSplit.GetRange(3), "propertyFlags") &&
+                         StrRangeToUint(csvSplit.GetRange(4), m_MemProps.memoryTypes[value].propertyFlags))
                 {
-                     // Parsed.
+                    // Parsed.
                 }
                 else
                     printf("Line %zu: Invalid configuration option.\n", currLineNumber);
@@ -1311,35 +1304,35 @@ bool ConfigurationParser::Parse(LineSplit& lineSplit)
 }
 
 void ConfigurationParser::Compare(
-    const VkPhysicalDeviceProperties& currDevProps,
-    const VkPhysicalDeviceMemoryProperties& currMemProps,
+    const VkPhysicalDeviceProperties &currDevProps,
+    const VkPhysicalDeviceMemoryProperties &currMemProps,
     uint32_t vulkanApiVersion,
     bool currMemoryBudgetEnabled)
 {
     char vulkanApiVersionStr[32];
     sprintf_s(vulkanApiVersionStr, "%u,%u", VK_VERSION_MAJOR(vulkanApiVersion), VK_VERSION_MINOR(vulkanApiVersion));
     CompareOption(VERBOSITY::DEFAULT, "VulkanApiVersion",
-        OPTION::VulkanApiVersion, vulkanApiVersionStr);
+                  OPTION::VulkanApiVersion, vulkanApiVersionStr);
 
     CompareOption(VERBOSITY::MAXIMUM, "PhysicalDevice apiVersion",
-        OPTION::PhysicalDevice_apiVersion, currDevProps.apiVersion);
+                  OPTION::PhysicalDevice_apiVersion, currDevProps.apiVersion);
     CompareOption(VERBOSITY::MAXIMUM, "PhysicalDevice driverVersion",
-        OPTION::PhysicalDevice_driverVersion, currDevProps.driverVersion);
+                  OPTION::PhysicalDevice_driverVersion, currDevProps.driverVersion);
     CompareOption(VERBOSITY::MAXIMUM, "PhysicalDevice vendorID",
-        OPTION::PhysicalDevice_vendorID, currDevProps.vendorID);
+                  OPTION::PhysicalDevice_vendorID, currDevProps.vendorID);
     CompareOption(VERBOSITY::MAXIMUM, "PhysicalDevice deviceID",
-        OPTION::PhysicalDevice_deviceID, currDevProps.deviceID);
+                  OPTION::PhysicalDevice_deviceID, currDevProps.deviceID);
     CompareOption(VERBOSITY::MAXIMUM, "PhysicalDevice deviceType",
-        OPTION::PhysicalDevice_deviceType, (uint32_t)currDevProps.deviceType);
+                  OPTION::PhysicalDevice_deviceType, (uint32_t)currDevProps.deviceType);
     CompareOption(VERBOSITY::MAXIMUM, "PhysicalDevice deviceName",
-        OPTION::PhysicalDevice_deviceName, currDevProps.deviceName);
+                  OPTION::PhysicalDevice_deviceName, currDevProps.deviceName);
 
     CompareOption(VERBOSITY::DEFAULT, "PhysicalDeviceLimits maxMemoryAllocationCount",
-        OPTION::PhysicalDeviceLimits_maxMemoryAllocationCount, currDevProps.limits.maxMemoryAllocationCount);
+                  OPTION::PhysicalDeviceLimits_maxMemoryAllocationCount, currDevProps.limits.maxMemoryAllocationCount);
     CompareOption(VERBOSITY::DEFAULT, "PhysicalDeviceLimits bufferImageGranularity",
-        OPTION::PhysicalDeviceLimits_bufferImageGranularity, currDevProps.limits.bufferImageGranularity);
+                  OPTION::PhysicalDeviceLimits_bufferImageGranularity, currDevProps.limits.bufferImageGranularity);
     CompareOption(VERBOSITY::DEFAULT, "PhysicalDeviceLimits nonCoherentAtomSize",
-        OPTION::PhysicalDeviceLimits_nonCoherentAtomSize, currDevProps.limits.nonCoherentAtomSize);
+                  OPTION::PhysicalDeviceLimits_nonCoherentAtomSize, currDevProps.limits.nonCoherentAtomSize);
 
     CompareMemProps(currMemProps);
 }
@@ -1347,11 +1340,11 @@ void ConfigurationParser::Compare(
 void ConfigurationParser::SetOption(
     size_t lineNumber,
     OPTION option,
-    const StrRange& str)
+    const StrRange &str)
 {
-    if(m_OptionSet[(size_t)option])
+    if (m_OptionSet[(size_t)option])
     {
-        printf("Line %zu: Option already specified.\n" ,lineNumber);
+        printf("Line %zu: Option already specified.\n", lineNumber);
     }
 
     m_OptionSet[(size_t)option] = true;
@@ -1363,23 +1356,23 @@ void ConfigurationParser::SetOption(
 
 void ConfigurationParser::EnsureWarningHeader()
 {
-    if(!m_WarningHeaderPrinted)
+    if (!m_WarningHeaderPrinted)
     {
         printf("WARNING: Following configuration parameters don't match:\n");
         m_WarningHeaderPrinted = true;
     }
 }
 
-void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char* name,
-    OPTION option, uint32_t currValue)
+void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char *name,
+                                        OPTION option, uint32_t currValue)
 {
-    if(m_OptionSet[(size_t)option] &&
+    if (m_OptionSet[(size_t)option] &&
         g_Verbosity >= minVerbosity)
     {
         uint32_t origValue;
-        if(StrRangeToUint(StrRange(m_OptionValue[(size_t)option]), origValue))
+        if (StrRangeToUint(StrRange(m_OptionValue[(size_t)option]), origValue))
         {
-            if(origValue != currValue)
+            if (origValue != currValue)
             {
                 EnsureWarningHeader();
                 printf("    %s: original %u, current %u\n", name, origValue, currValue);
@@ -1388,16 +1381,16 @@ void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char* name
     }
 }
 
-void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char* name,
-    OPTION option, uint64_t currValue)
+void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char *name,
+                                        OPTION option, uint64_t currValue)
 {
-    if(m_OptionSet[(size_t)option] &&
+    if (m_OptionSet[(size_t)option] &&
         g_Verbosity >= minVerbosity)
     {
         uint64_t origValue;
-        if(StrRangeToUint(StrRange(m_OptionValue[(size_t)option]), origValue))
+        if (StrRangeToUint(StrRange(m_OptionValue[(size_t)option]), origValue))
         {
-            if(origValue != currValue)
+            if (origValue != currValue)
             {
                 EnsureWarningHeader();
                 printf("    %s: original %llu, current %llu\n", name, origValue, currValue);
@@ -1406,34 +1399,34 @@ void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char* name
     }
 }
 
-void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char* name,
-    OPTION option, bool currValue)
+void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char *name,
+                                        OPTION option, bool currValue)
 {
-    if(m_OptionSet[(size_t)option] &&
+    if (m_OptionSet[(size_t)option] &&
         g_Verbosity >= minVerbosity)
     {
         bool origValue;
-        if(StrRangeToBool(StrRange(m_OptionValue[(size_t)option]), origValue))
+        if (StrRangeToBool(StrRange(m_OptionValue[(size_t)option]), origValue))
         {
-            if(origValue != currValue)
+            if (origValue != currValue)
             {
                 EnsureWarningHeader();
                 printf("    %s: original %u, current %u\n", name,
-                    origValue ? 1 : 0,
-                    currValue ? 1 : 0);
+                       origValue ? 1 : 0,
+                       currValue ? 1 : 0);
             }
         }
     }
 }
 
-void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char* name,
-    OPTION option, const char* currValue)
+void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char *name,
+                                        OPTION option, const char *currValue)
 {
-    if(m_OptionSet[(size_t)option] &&
+    if (m_OptionSet[(size_t)option] &&
         g_Verbosity >= minVerbosity)
     {
-        const std::string& origValue = m_OptionValue[(size_t)option];
-        if(origValue != currValue)
+        const std::string &origValue = m_OptionValue[(size_t)option];
+        if (origValue != currValue)
         {
             EnsureWarningHeader();
             printf("    %s: original \"%s\", current \"%s\"\n", name, origValue.c_str(), currValue);
@@ -1442,9 +1435,9 @@ void ConfigurationParser::CompareOption(VERBOSITY minVerbosity, const char* name
 }
 
 void ConfigurationParser::CompareMemProps(
-    const VkPhysicalDeviceMemoryProperties& currMemProps)
+    const VkPhysicalDeviceMemoryProperties &currMemProps)
 {
-    if(g_Verbosity < VERBOSITY::DEFAULT)
+    if (g_Verbosity < VERBOSITY::DEFAULT)
     {
         return;
     }
@@ -1453,28 +1446,28 @@ void ConfigurationParser::CompareMemProps(
         currMemProps.memoryHeapCount == m_MemProps.memoryHeapCount &&
         currMemProps.memoryTypeCount == m_MemProps.memoryTypeCount;
 
-    for(uint32_t i = 0; memoryMatch && i < currMemProps.memoryHeapCount; ++i)
+    for (uint32_t i = 0; memoryMatch && i < currMemProps.memoryHeapCount; ++i)
     {
         memoryMatch =
             currMemProps.memoryHeaps[i].flags == m_MemProps.memoryHeaps[i].flags;
     }
-    for(uint32_t i = 0; memoryMatch && i < currMemProps.memoryTypeCount; ++i)
+    for (uint32_t i = 0; memoryMatch && i < currMemProps.memoryTypeCount; ++i)
     {
         memoryMatch =
             currMemProps.memoryTypes[i].heapIndex == m_MemProps.memoryTypes[i].heapIndex &&
             currMemProps.memoryTypes[i].propertyFlags == m_MemProps.memoryTypes[i].propertyFlags;
     }
 
-    if(memoryMatch && g_Verbosity == VERBOSITY::MAXIMUM)
+    if (memoryMatch && g_Verbosity == VERBOSITY::MAXIMUM)
     {
         bool memorySizeMatch = true;
-        for(uint32_t i = 0; memorySizeMatch && i < currMemProps.memoryHeapCount; ++i)
+        for (uint32_t i = 0; memorySizeMatch && i < currMemProps.memoryHeapCount; ++i)
         {
             memorySizeMatch =
                 currMemProps.memoryHeaps[i].size == m_MemProps.memoryHeaps[i].size;
         }
 
-        if(!memorySizeMatch)
+        if (!memorySizeMatch)
         {
             printf("WARNING: Sizes of original memory heaps are different from current ones.\n");
         }
@@ -1488,7 +1481,7 @@ void ConfigurationParser::CompareMemProps(
 ////////////////////////////////////////////////////////////////////////////////
 // class Player
 
-static const char* const VALIDATION_LAYER_NAME = "VK_LAYER_LUNARG_standard_validation";
+static const char *const VALIDATION_LAYER_NAME = "VK_LAYER_LUNARG_standard_validation";
 
 static const bool g_MemoryAliasingWarningEnabled = false;
 
@@ -1498,12 +1491,12 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL MyDebugReportCallback(
     uint64_t object,
     size_t location,
     int32_t messageCode,
-    const char* pLayerPrefix,
-    const char* pMessage,
-    void* pUserData)
+    const char *pLayerPrefix,
+    const char *pMessage,
+    void *pUserData)
 {
     // "Non-linear image 0xebc91 is aliased with linear buffer 0xeb8e4 which may indicate a bug."
-    if(!g_MemoryAliasingWarningEnabled && flags == VK_DEBUG_REPORT_WARNING_BIT_EXT &&
+    if (!g_MemoryAliasingWarningEnabled && flags == VK_DEBUG_REPORT_WARNING_BIT_EXT &&
         (strstr(pMessage, " is aliased with non-linear ") || strstr(pMessage, " is aliased with linear ")))
     {
         return VK_FALSE;
@@ -1520,14 +1513,14 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL MyDebugReportCallback(
     {
         return VK_FALSE;
     }
-    
+
     /*
     "Mapping an image with layout VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL can result in undefined behavior if this memory is used by the device. Only GENERAL or PREINITIALIZED should be used."
     Ignoring because we map entire VkDeviceMemory blocks, where different types of
     images and buffers may end up together, especially on GPUs with unified memory
     like Intel.
     */
-    if(strstr(pMessage, "Mapping an image with layout") != nullptr &&
+    if (strstr(pMessage, "Mapping an image with layout") != nullptr &&
         strstr(pMessage, "can result in undefined behavior if this memory is used by the device") != nullptr)
     {
         return VK_FALSE;
@@ -1538,22 +1531,22 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL MyDebugReportCallback(
     return VK_FALSE;
 }
 
-static bool IsLayerSupported(const VkLayerProperties* pProps, size_t propCount, const char* pLayerName)
+static bool IsLayerSupported(const VkLayerProperties *pProps, size_t propCount, const char *pLayerName)
 {
-    const VkLayerProperties* propsEnd = pProps + propCount;
+    const VkLayerProperties *propsEnd = pProps + propCount;
     return std::find_if(
-        pProps,
-        propsEnd,
-        [pLayerName](const VkLayerProperties& prop) -> bool {
-            return strcmp(pLayerName, prop.layerName) == 0;
-        }) != propsEnd;
+               pProps,
+               propsEnd,
+               [pLayerName](const VkLayerProperties &prop) -> bool {
+                   return strcmp(pLayerName, prop.layerName) == 0;
+               }) != propsEnd;
 }
 
 static const size_t FIRST_PARAM_INDEX = 4;
 
 static void InitVulkanFeatures(
-    VkPhysicalDeviceFeatures& outFeatures,
-    const VkPhysicalDeviceFeatures& supportedFeatures)
+    VkPhysicalDeviceFeatures &outFeatures,
+    const VkPhysicalDeviceFeatures &supportedFeatures)
 {
     ZeroMemory(&outFeatures, sizeof(outFeatures));
 
@@ -1576,9 +1569,9 @@ public:
     int Init();
     ~Player();
 
-    void ApplyConfig(ConfigurationParser& configParser);
-    void ExecuteLine(size_t lineNumber, const StrRange& line);
-    void DumpStats(const char* fileNameFormat, size_t lineNumber, bool detailed);
+    void ApplyConfig(ConfigurationParser &configParser);
+    void ExecuteLine(size_t lineNumber, const StrRange &line);
+    void DumpStats(const char *fileNameFormat, size_t lineNumber, bool detailed);
     void Defragment();
 
     void PrintStats();
@@ -1600,8 +1593,8 @@ private:
     VkCommandPool m_CommandPool = VK_NULL_HANDLE;
     VkCommandBuffer m_CommandBuffer = VK_NULL_HANDLE;
     bool m_MemoryBudgetEnabled = false;
-    const VkPhysicalDeviceProperties* m_DevProps = nullptr;
-    const VkPhysicalDeviceMemoryProperties* m_MemProps = nullptr;
+    const VkPhysicalDeviceProperties *m_DevProps = nullptr;
+    const VkPhysicalDeviceMemoryProperties *m_MemProps = nullptr;
 
     PFN_vkCreateDebugReportCallbackEXT m_pvkCreateDebugReportCallbackEXT;
     PFN_vkDebugReportMessageEXT m_pvkDebugReportMessageEXT;
@@ -1638,14 +1631,14 @@ private:
 
     std::vector<char> m_UserDataTmpStr;
 
-    void Destroy(const Allocation& alloc);
+    void Destroy(const Allocation &alloc);
 
     // Finds VmaPool bu original pointer.
     // If origPool = null, returns true and outPool = null.
     // If failed, prints warning, returns false and outPool = null.
-    bool FindPool(size_t lineNumber, uint64_t origPool, VmaPool& outPool);
+    bool FindPool(size_t lineNumber, uint64_t origPool, VmaPool &outPool);
     // If allocation with that origPtr already exists, prints warning and replaces it.
-    void AddAllocation(size_t lineNumber, uint64_t origPtr, VkResult res, const char* functionName, Allocation&& allocDesc);
+    void AddAllocation(size_t lineNumber, uint64_t origPtr, VkResult res, const char *functionName, Allocation &&allocDesc);
 
     // Increments warning counter. Returns true if warning message should be printed.
     bool IssueWarning();
@@ -1655,42 +1648,54 @@ private:
     void RegisterDebugCallbacks();
 
     // If parmeter count doesn't match, issues warning and returns false.
-    bool ValidateFunctionParameterCount(size_t lineNumber, const CsvSplit& csvSplit, size_t expectedParamCount, bool lastUnbound);
+    bool ValidateFunctionParameterCount(size_t lineNumber, const CsvSplit &csvSplit, size_t expectedParamCount, bool lastUnbound);
 
     // If failed, prints warning, returns false, and sets allocCreateInfo.pUserData to null.
-    bool PrepareUserData(size_t lineNumber, uint32_t allocCreateFlags, const StrRange& userDataColumn, const StrRange& wholeLine, void*& outUserData);
+    bool PrepareUserData(size_t lineNumber, uint32_t allocCreateFlags, const StrRange &userDataColumn, const StrRange &wholeLine, void *&outUserData);
 
     void UpdateMemStats();
 
-    void ExecuteCreatePool(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteDestroyPool(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteSetAllocationUserData(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteCreateBuffer(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteDestroyBuffer(size_t lineNumber, const CsvSplit& csvSplit) { m_Stats.RegisterFunctionCall(VMA_FUNCTION::DestroyBuffer); DestroyAllocation(lineNumber, csvSplit, "vmaDestroyBuffer"); }
-    void ExecuteCreateImage(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteDestroyImage(size_t lineNumber, const CsvSplit& csvSplit) { m_Stats.RegisterFunctionCall(VMA_FUNCTION::DestroyImage); DestroyAllocation(lineNumber, csvSplit, "vmaDestroyImage"); }
-    void ExecuteFreeMemory(size_t lineNumber, const CsvSplit& csvSplit) { m_Stats.RegisterFunctionCall(VMA_FUNCTION::FreeMemory); DestroyAllocation(lineNumber, csvSplit, "vmaFreeMemory"); }
-    void ExecuteFreeMemoryPages(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteCreateLostAllocation(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteAllocateMemory(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteAllocateMemoryPages(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteAllocateMemoryForBufferOrImage(size_t lineNumber, const CsvSplit& csvSplit, OBJECT_TYPE objType);
-    void ExecuteMapMemory(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteUnmapMemory(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteFlushAllocation(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteInvalidateAllocation(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteTouchAllocation(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteGetAllocationInfo(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteMakePoolAllocationsLost(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteResizeAllocation(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteDefragmentationEnd(size_t lineNumber, const CsvSplit& csvSplit);
-    void ExecuteSetPoolName(size_t lineNumber, const CsvSplit& csvSplit);
+    void ExecuteCreatePool(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteDestroyPool(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteSetAllocationUserData(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteCreateBuffer(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteDestroyBuffer(size_t lineNumber, const CsvSplit &csvSplit)
+    {
+        m_Stats.RegisterFunctionCall(VMA_FUNCTION::DestroyBuffer);
+        DestroyAllocation(lineNumber, csvSplit, "vmaDestroyBuffer");
+    }
+    void ExecuteCreateImage(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteDestroyImage(size_t lineNumber, const CsvSplit &csvSplit)
+    {
+        m_Stats.RegisterFunctionCall(VMA_FUNCTION::DestroyImage);
+        DestroyAllocation(lineNumber, csvSplit, "vmaDestroyImage");
+    }
+    void ExecuteFreeMemory(size_t lineNumber, const CsvSplit &csvSplit)
+    {
+        m_Stats.RegisterFunctionCall(VMA_FUNCTION::FreeMemory);
+        DestroyAllocation(lineNumber, csvSplit, "vmaFreeMemory");
+    }
+    void ExecuteFreeMemoryPages(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteCreateLostAllocation(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteAllocateMemory(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteAllocateMemoryPages(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteAllocateMemoryForBufferOrImage(size_t lineNumber, const CsvSplit &csvSplit, OBJECT_TYPE objType);
+    void ExecuteMapMemory(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteUnmapMemory(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteFlushAllocation(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteInvalidateAllocation(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteTouchAllocation(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteGetAllocationInfo(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteMakePoolAllocationsLost(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteResizeAllocation(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteDefragmentationEnd(size_t lineNumber, const CsvSplit &csvSplit);
+    void ExecuteSetPoolName(size_t lineNumber, const CsvSplit &csvSplit);
 
-    void DestroyAllocation(size_t lineNumber, const CsvSplit& csvSplit, const char* functionName);
+    void DestroyAllocation(size_t lineNumber, const CsvSplit &csvSplit, const char *functionName);
 
-    void PrintStats(const VmaStats& stats, const char* suffix);
-    void PrintStatInfo(const VmaStatInfo& info);
+    void PrintStats(const VmaStats &stats, const char *suffix);
+    void PrintStatInfo(const VmaStatInfo &info);
 };
 
 Player::Player()
@@ -1700,13 +1705,13 @@ Player::Player()
 int Player::Init()
 {
     int result = InitVulkan();
-    
-    if(result == 0)
+
+    if (result == 0)
     {
         m_Stats.Init(m_MemProps->memoryHeapCount, m_MemProps->memoryTypeCount);
         UpdateMemStats();
     }
-    
+
     return result;
 }
 
@@ -1714,30 +1719,30 @@ Player::~Player()
 {
     FinalizeVulkan();
 
-    if(g_Verbosity < VERBOSITY::MAXIMUM && m_WarningCount > MAX_WARNINGS_TO_SHOW)
+    if (g_Verbosity < VERBOSITY::MAXIMUM && m_WarningCount > MAX_WARNINGS_TO_SHOW)
         printf("WARNING: %zu more warnings not shown.\n", m_WarningCount - MAX_WARNINGS_TO_SHOW);
 }
 
-void Player::ApplyConfig(ConfigurationParser& configParser)
+void Player::ApplyConfig(ConfigurationParser &configParser)
 {
     configParser.Compare(*m_DevProps, *m_MemProps,
-        VULKAN_API_VERSION,
-        m_MemoryBudgetEnabled);
+                         VULKAN_API_VERSION,
+                         m_MemoryBudgetEnabled);
 }
 
-void Player::ExecuteLine(size_t lineNumber, const StrRange& line)
+void Player::ExecuteLine(size_t lineNumber, const StrRange &line)
 {
     CsvSplit csvSplit;
     csvSplit.Set(line);
 
-    if(csvSplit.GetCount() >= FIRST_PARAM_INDEX)
+    if (csvSplit.GetCount() >= FIRST_PARAM_INDEX)
     {
         // Check thread ID.
         uint32_t threadId;
-        if(StrRangeToUint(csvSplit.GetRange(0), threadId))
+        if (StrRangeToUint(csvSplit.GetRange(0), threadId))
         {
             const auto it = m_Threads.find(threadId);
-            if(it != m_Threads.end())
+            if (it != m_Threads.end())
             {
                 ++it->second.callCount;
             }
@@ -1750,7 +1755,7 @@ void Player::ExecuteLine(size_t lineNumber, const StrRange& line)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Incorrect thread ID.\n", lineNumber);
             }
@@ -1762,9 +1767,9 @@ void Player::ExecuteLine(size_t lineNumber, const StrRange& line)
         // Update VMA current frame index.
         StrRange frameIndexStr = csvSplit.GetRange(2);
         uint32_t frameIndex;
-        if(StrRangeToUint(frameIndexStr, frameIndex))
+        if (StrRangeToUint(frameIndexStr, frameIndex))
         {
-            if(frameIndex != m_VmaFrameIndex)
+            if (frameIndex != m_VmaFrameIndex)
             {
                 vmaSetCurrentFrameIndex(m_Allocator, frameIndex);
                 m_VmaFrameIndex = frameIndex;
@@ -1772,7 +1777,7 @@ void Player::ExecuteLine(size_t lineNumber, const StrRange& line)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Incorrect frame index.\n", lineNumber);
             }
@@ -1780,73 +1785,73 @@ void Player::ExecuteLine(size_t lineNumber, const StrRange& line)
 
         StrRange functionName = csvSplit.GetRange(3);
 
-        if(StrRangeEq(functionName, "vmaCreateAllocator"))
+        if (StrRangeEq(functionName, "vmaCreateAllocator"))
         {
-            if(ValidateFunctionParameterCount(lineNumber, csvSplit, 0, false))
+            if (ValidateFunctionParameterCount(lineNumber, csvSplit, 0, false))
             {
                 // Nothing.
             }
         }
-        else if(StrRangeEq(functionName, "vmaDestroyAllocator"))
+        else if (StrRangeEq(functionName, "vmaDestroyAllocator"))
         {
-            if(ValidateFunctionParameterCount(lineNumber, csvSplit, 0, false))
+            if (ValidateFunctionParameterCount(lineNumber, csvSplit, 0, false))
             {
                 // Nothing.
             }
         }
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::CreatePool]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::CreatePool]))
             ExecuteCreatePool(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::DestroyPool]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::DestroyPool]))
             ExecuteDestroyPool(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::SetAllocationUserData]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::SetAllocationUserData]))
             ExecuteSetAllocationUserData(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::CreateBuffer]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::CreateBuffer]))
             ExecuteCreateBuffer(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::DestroyBuffer]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::DestroyBuffer]))
             ExecuteDestroyBuffer(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::CreateImage]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::CreateImage]))
             ExecuteCreateImage(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::DestroyImage]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::DestroyImage]))
             ExecuteDestroyImage(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::FreeMemory]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::FreeMemory]))
             ExecuteFreeMemory(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::FreeMemoryPages]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::FreeMemoryPages]))
             ExecuteFreeMemoryPages(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::CreateLostAllocation]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::CreateLostAllocation]))
             ExecuteCreateLostAllocation(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::AllocateMemory]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::AllocateMemory]))
             ExecuteAllocateMemory(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::AllocateMemoryPages]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::AllocateMemoryPages]))
             ExecuteAllocateMemoryPages(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::AllocateMemoryForBuffer]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::AllocateMemoryForBuffer]))
             ExecuteAllocateMemoryForBufferOrImage(lineNumber, csvSplit, OBJECT_TYPE::BUFFER);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::AllocateMemoryForImage]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::AllocateMemoryForImage]))
             ExecuteAllocateMemoryForBufferOrImage(lineNumber, csvSplit, OBJECT_TYPE::IMAGE);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::MapMemory]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::MapMemory]))
             ExecuteMapMemory(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::UnmapMemory]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::UnmapMemory]))
             ExecuteUnmapMemory(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::FlushAllocation]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::FlushAllocation]))
             ExecuteFlushAllocation(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::InvalidateAllocation]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::InvalidateAllocation]))
             ExecuteInvalidateAllocation(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::TouchAllocation]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::TouchAllocation]))
             ExecuteTouchAllocation(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::GetAllocationInfo]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::GetAllocationInfo]))
             ExecuteGetAllocationInfo(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::MakePoolAllocationsLost]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::MakePoolAllocationsLost]))
             ExecuteMakePoolAllocationsLost(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::ResizeAllocation]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::ResizeAllocation]))
             ExecuteResizeAllocation(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::DefragmentationBegin]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::DefragmentationBegin]))
             ExecuteDefragmentationBegin(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::DefragmentationEnd]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::DefragmentationEnd]))
             ExecuteDefragmentationEnd(lineNumber, csvSplit);
-        else if(StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::SetPoolName]))
+        else if (StrRangeEq(functionName, VMA_FUNCTION_NAMES[(uint32_t)VMA_FUNCTION::SetPoolName]))
             ExecuteSetPoolName(lineNumber, csvSplit);
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Unknown function.\n", lineNumber);
             }
@@ -1854,24 +1859,24 @@ void Player::ExecuteLine(size_t lineNumber, const StrRange& line)
     }
     else
     {
-        if(IssueWarning())
+        if (IssueWarning())
         {
             printf("Line %zu: Too few columns.\n", lineNumber);
         }
     }
 }
 
-void Player::DumpStats(const char* fileNameFormat, size_t lineNumber, bool detailed)
+void Player::DumpStats(const char *fileNameFormat, size_t lineNumber, bool detailed)
 {
-    char* pStatsString = nullptr;
+    char *pStatsString = nullptr;
     vmaBuildStatsString(m_Allocator, &pStatsString, detailed ? VK_TRUE : VK_FALSE);
 
     char fileName[MAX_PATH];
     sprintf_s(fileName, fileNameFormat, lineNumber);
 
-    FILE* file = nullptr;
+    FILE *file = nullptr;
     errno_t err = fopen_s(&file, fileName, "wb");
-    if(err == 0)
+    if (err == 0)
     {
         fwrite(pStatsString, 1, strlen(pStatsString), file);
         fclose(file);
@@ -1884,14 +1889,14 @@ void Player::DumpStats(const char* fileNameFormat, size_t lineNumber, bool detai
     vmaFreeStatsString(m_Allocator, pStatsString);
 }
 
-void Player::Destroy(const Allocation& alloc)
+void Player::Destroy(const Allocation &alloc)
 {
-    if(alloc.buffer)
+    if (alloc.buffer)
     {
         assert(alloc.image == VK_NULL_HANDLE);
         vmaDestroyBuffer(m_Allocator, alloc.buffer, alloc.allocation);
     }
-    else if(alloc.image)
+    else if (alloc.image)
     {
         vmaDestroyImage(m_Allocator, alloc.image, alloc.allocation);
     }
@@ -1899,21 +1904,21 @@ void Player::Destroy(const Allocation& alloc)
         vmaFreeMemory(m_Allocator, alloc.allocation);
 }
 
-bool Player::FindPool(size_t lineNumber, uint64_t origPool, VmaPool& outPool)
+bool Player::FindPool(size_t lineNumber, uint64_t origPool, VmaPool &outPool)
 {
     outPool = VK_NULL_HANDLE;
 
-    if(origPool != 0)
+    if (origPool != 0)
     {
         const auto poolIt = m_Pools.find(origPool);
-        if(poolIt != m_Pools.end())
+        if (poolIt != m_Pools.end())
         {
             outPool = poolIt->second.pool;
             return true;
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Pool %llX not found.\n", lineNumber, origPool);
             }
@@ -1923,11 +1928,11 @@ bool Player::FindPool(size_t lineNumber, uint64_t origPool, VmaPool& outPool)
     return true;
 }
 
-void Player::AddAllocation(size_t lineNumber, uint64_t origPtr, VkResult res, const char* functionName, Allocation&& allocDesc)
+void Player::AddAllocation(size_t lineNumber, uint64_t origPtr, VkResult res, const char *functionName, Allocation &&allocDesc)
 {
-    if(origPtr)
+    if (origPtr)
     {
-        if(res == VK_SUCCESS)
+        if (res == VK_SUCCESS)
         {
             // Originally succeeded, currently succeeded.
             // Just save pointer (done below).
@@ -1936,16 +1941,16 @@ void Player::AddAllocation(size_t lineNumber, uint64_t origPtr, VkResult res, co
         {
             // Originally succeeded, currently failed.
             // Print warning. Save null pointer.
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: %s failed (%d), while originally succeeded.\n", lineNumber, functionName, res);
             }
         }
 
         const auto existingIt = m_Allocations.find(origPtr);
-        if(existingIt != m_Allocations.end())
+        if (existingIt != m_Allocations.end())
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Allocation %llX already exists.\n", lineNumber, origPtr);
             }
@@ -1954,11 +1959,11 @@ void Player::AddAllocation(size_t lineNumber, uint64_t origPtr, VkResult res, co
     }
     else
     {
-        if(res == VK_SUCCESS)
+        if (res == VK_SUCCESS)
         {
             // Originally failed, currently succeeded.
             // Print warning, destroy the object.
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: %s succeeded, originally failed.\n", lineNumber, functionName);
             }
@@ -1969,7 +1974,7 @@ void Player::AddAllocation(size_t lineNumber, uint64_t origPtr, VkResult res, co
         {
             // Originally failed, currently failed.
             // Print warning.
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: %s failed (%d), originally also failed.\n", lineNumber, functionName, res);
             }
@@ -1979,7 +1984,7 @@ void Player::AddAllocation(size_t lineNumber, uint64_t origPtr, VkResult res, co
 
 bool Player::IssueWarning()
 {
-    if(g_Verbosity < VERBOSITY::MAXIMUM)
+    if (g_Verbosity < VERBOSITY::MAXIMUM)
     {
         return m_WarningCount++ < MAX_WARNINGS_TO_SHOW;
     }
@@ -1992,7 +1997,7 @@ bool Player::IssueWarning()
 
 int Player::InitVulkan()
 {
-    if(g_Verbosity == VERBOSITY::MAXIMUM)
+    if (g_Verbosity == VERBOSITY::MAXIMUM)
     {
         printf("Initializing Vulkan...\n");
     }
@@ -2002,7 +2007,7 @@ int Player::InitVulkan()
     assert(res == VK_SUCCESS);
 
     std::vector<VkLayerProperties> instanceLayerProps(instanceLayerPropCount);
-    if(instanceLayerPropCount > 0)
+    if (instanceLayerPropCount > 0)
     {
         res = vkEnumerateInstanceLayerProperties(&instanceLayerPropCount, instanceLayerProps.data());
         assert(res == VK_SUCCESS);
@@ -2012,7 +2017,7 @@ int Player::InitVulkan()
         IsLayerSupported(instanceLayerProps.data(), instanceLayerProps.size(), VALIDATION_LAYER_NAME);
 
     bool validationLayersEnabled = false;
-    switch(g_VK_LAYER_LUNARG_standard_validation)
+    switch (g_VK_LAYER_LUNARG_standard_validation)
     {
     case VULKAN_EXTENSION_REQUEST::DISABLED:
         break;
@@ -2021,53 +2026,54 @@ int Player::InitVulkan()
         break;
     case VULKAN_EXTENSION_REQUEST::ENABLED:
         validationLayersEnabled = validationLayersAvailable;
-        if(!validationLayersAvailable)
+        if (!validationLayersAvailable)
         {
             printf("WARNING: %s layer cannot be enabled.\n", VALIDATION_LAYER_NAME);
         }
         break;
-    default: assert(0);
+    default:
+        assert(0);
     }
 
     uint32_t availableInstanceExtensionCount = 0;
     res = vkEnumerateInstanceExtensionProperties(nullptr, &availableInstanceExtensionCount, nullptr);
     assert(res == VK_SUCCESS);
     std::vector<VkExtensionProperties> availableInstanceExtensions(availableInstanceExtensionCount);
-    if(availableInstanceExtensionCount > 0)
+    if (availableInstanceExtensionCount > 0)
     {
         res = vkEnumerateInstanceExtensionProperties(nullptr, &availableInstanceExtensionCount, availableInstanceExtensions.data());
         assert(res == VK_SUCCESS);
     }
 
-    std::vector<const char*> enabledInstanceExtensions;
+    std::vector<const char *> enabledInstanceExtensions;
     //enabledInstanceExtensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
     //enabledInstanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
 
-    std::vector<const char*> instanceLayers;
-    if(validationLayersEnabled)
+    std::vector<const char *> instanceLayers;
+    if (validationLayersEnabled)
     {
         instanceLayers.push_back(VALIDATION_LAYER_NAME);
         enabledInstanceExtensions.push_back("VK_EXT_debug_report");
     }
 
     bool VK_KHR_get_physical_device_properties2_enabled = false;
-    for(const auto& extensionProperties : availableInstanceExtensions)
+    for (const auto &extensionProperties : availableInstanceExtensions)
     {
-        if(strcmp(extensionProperties.extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == 0)
+        if (strcmp(extensionProperties.extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == 0)
         {
             enabledInstanceExtensions.push_back(VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
             VK_KHR_get_physical_device_properties2_enabled = true;
         }
     }
 
-    VkApplicationInfo appInfo = { VK_STRUCTURE_TYPE_APPLICATION_INFO };
+    VkApplicationInfo appInfo = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
     appInfo.pApplicationName = "VmaReplay";
     appInfo.applicationVersion = VK_MAKE_VERSION(2, 3, 0);
     appInfo.pEngineName = "Vulkan Memory Allocator";
     appInfo.engineVersion = VK_MAKE_VERSION(2, 3, 0);
     appInfo.apiVersion = VULKAN_API_VERSION;
 
-    VkInstanceCreateInfo instInfo = { VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO };
+    VkInstanceCreateInfo instInfo = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     instInfo.pApplicationInfo = &appInfo;
     instInfo.enabledExtensionCount = (uint32_t)enabledInstanceExtensions.size();
     instInfo.ppEnabledExtensionNames = enabledInstanceExtensions.data();
@@ -2075,13 +2081,13 @@ int Player::InitVulkan()
     instInfo.ppEnabledLayerNames = instanceLayers.data();
 
     res = vkCreateInstance(&instInfo, NULL, &m_VulkanInstance);
-    if(res != VK_SUCCESS)
+    if (res != VK_SUCCESS)
     {
         printf("ERROR: vkCreateInstance failed (%d)\n", res);
         return RESULT_ERROR_VULKAN;
     }
 
-    if(validationLayersEnabled)
+    if (validationLayersEnabled)
     {
         RegisterDebugCallbacks();
     }
@@ -2091,7 +2097,7 @@ int Player::InitVulkan()
     uint32_t physicalDeviceCount = 0;
     res = vkEnumeratePhysicalDevices(m_VulkanInstance, &physicalDeviceCount, nullptr);
     assert(res == VK_SUCCESS);
-    if(physicalDeviceCount == 0)
+    if (physicalDeviceCount == 0)
     {
         printf("ERROR: No Vulkan physical devices found.\n");
         return RESULT_ERROR_VULKAN;
@@ -2101,11 +2107,11 @@ int Player::InitVulkan()
     res = vkEnumeratePhysicalDevices(m_VulkanInstance, &physicalDeviceCount, physicalDevices.data());
     assert(res == VK_SUCCESS);
 
-    if(g_PhysicalDeviceIndex >= physicalDeviceCount)
+    if (g_PhysicalDeviceIndex >= physicalDeviceCount)
     {
         printf("ERROR: Incorrect Vulkan physical device index %u. System has %u physical devices.\n",
-            g_PhysicalDeviceIndex,
-            physicalDeviceCount);
+               g_PhysicalDeviceIndex,
+               physicalDeviceCount);
         return RESULT_ERROR_VULKAN;
     }
 
@@ -2115,20 +2121,20 @@ int Player::InitVulkan()
 
     uint32_t queueFamilyCount = 0;
     vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, nullptr);
-    if(queueFamilyCount)
+    if (queueFamilyCount)
     {
         std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
         vkGetPhysicalDeviceQueueFamilyProperties(m_PhysicalDevice, &queueFamilyCount, queueFamilies.data());
-        for(uint32_t i = 0; i < queueFamilyCount; ++i)
+        for (uint32_t i = 0; i < queueFamilyCount; ++i)
         {
-            if(queueFamilies[i].queueCount > 0)
+            if (queueFamilies[i].queueCount > 0)
             {
-                if(m_GraphicsQueueFamilyIndex == UINT32_MAX &&
+                if (m_GraphicsQueueFamilyIndex == UINT32_MAX &&
                     (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
                 {
                     m_GraphicsQueueFamilyIndex = i;
                 }
-                if(m_TransferQueueFamilyIndex == UINT32_MAX &&
+                if (m_TransferQueueFamilyIndex == UINT32_MAX &&
                     (queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT) != 0)
                 {
                     m_TransferQueueFamilyIndex = i;
@@ -2136,12 +2142,12 @@ int Player::InitVulkan()
             }
         }
     }
-    if(m_GraphicsQueueFamilyIndex == UINT_MAX)
+    if (m_GraphicsQueueFamilyIndex == UINT_MAX)
     {
         printf("ERROR: Couldn't find graphics queue.\n");
         return RESULT_ERROR_VULKAN;
     }
-    if(m_TransferQueueFamilyIndex == UINT_MAX)
+    if (m_TransferQueueFamilyIndex == UINT_MAX)
     {
         printf("ERROR: Couldn't find transfer queue.\n");
         return RESULT_ERROR_VULKAN;
@@ -2160,7 +2166,7 @@ int Player::InitVulkan()
     deviceQueueCreateInfo[0].queueCount = 1;
     deviceQueueCreateInfo[0].pQueuePriorities = &queuePriority;
 
-    if(m_TransferQueueFamilyIndex != m_GraphicsQueueFamilyIndex)
+    if (m_TransferQueueFamilyIndex != m_GraphicsQueueFamilyIndex)
     {
         deviceQueueCreateInfo[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         deviceQueueCreateInfo[1].queueFamilyIndex = m_TransferQueueFamilyIndex;
@@ -2175,7 +2181,7 @@ int Player::InitVulkan()
     bool VK_KHR_get_memory_requirements2_available = false;
 
     // Determine list of device extensions to enable.
-    std::vector<const char*> enabledDeviceExtensions;
+    std::vector<const char *> enabledDeviceExtensions;
     //enabledDeviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     bool memoryBudgetAvailable = false;
     {
@@ -2183,21 +2189,21 @@ int Player::InitVulkan()
         res = vkEnumerateDeviceExtensionProperties(m_PhysicalDevice, nullptr, &propertyCount, nullptr);
         assert(res == VK_SUCCESS);
 
-        if(propertyCount)
+        if (propertyCount)
         {
             std::vector<VkExtensionProperties> properties{propertyCount};
             res = vkEnumerateDeviceExtensionProperties(m_PhysicalDevice, nullptr, &propertyCount, properties.data());
             assert(res == VK_SUCCESS);
 
-            for(uint32_t i = 0; i < propertyCount; ++i)
+            for (uint32_t i = 0; i < propertyCount; ++i)
             {
-                if(strcmp(properties[i].extensionName, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME) == 0)
+                if (strcmp(properties[i].extensionName, VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME) == 0)
                 {
                     VK_KHR_get_memory_requirements2_available = true;
                 }
-                else if(strcmp(properties[i].extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
+                else if (strcmp(properties[i].extensionName, VK_EXT_MEMORY_BUDGET_EXTENSION_NAME) == 0)
                 {
-                    if(VK_KHR_get_physical_device_properties2_enabled)
+                    if (VK_KHR_get_physical_device_properties2_enabled)
                     {
                         memoryBudgetAvailable = true;
                     }
@@ -2206,7 +2212,7 @@ int Player::InitVulkan()
         }
     }
 
-    switch(g_VK_EXT_memory_budget_request)
+    switch (g_VK_EXT_memory_budget_request)
     {
     case VULKAN_EXTENSION_REQUEST::DISABLED:
         break;
@@ -2215,20 +2221,21 @@ int Player::InitVulkan()
         break;
     case VULKAN_EXTENSION_REQUEST::ENABLED:
         m_MemoryBudgetEnabled = memoryBudgetAvailable;
-        if(!memoryBudgetAvailable)
+        if (!memoryBudgetAvailable)
         {
             printf("WARNING: VK_EXT_memory_budget extension cannot be enabled.\n");
         }
         break;
-    default: assert(0);
+    default:
+        assert(0);
     }
 
-    if(m_MemoryBudgetEnabled)
+    if (m_MemoryBudgetEnabled)
     {
         enabledDeviceExtensions.push_back(VK_EXT_MEMORY_BUDGET_EXTENSION_NAME);
     }
 
-    VkDeviceCreateInfo deviceCreateInfo = { VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO };
+    VkDeviceCreateInfo deviceCreateInfo = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledDeviceExtensions.size();
     deviceCreateInfo.ppEnabledExtensionNames = !enabledDeviceExtensions.empty() ? enabledDeviceExtensions.data() : nullptr;
     deviceCreateInfo.queueCreateInfoCount = m_TransferQueueFamilyIndex != m_GraphicsQueueFamilyIndex ? 2 : 1;
@@ -2236,7 +2243,7 @@ int Player::InitVulkan()
     deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
 
     res = vkCreateDevice(m_PhysicalDevice, &deviceCreateInfo, nullptr, &m_Device);
-    if(res != VK_SUCCESS)
+    if (res != VK_SUCCESS)
     {
         printf("ERROR: vkCreateDevice failed (%d)\n", res);
         return RESULT_ERROR_VULKAN;
@@ -2260,13 +2267,13 @@ int Player::InitVulkan()
     allocatorInfo.pDeviceMemoryCallbacks = &deviceMemoryCallbacks;
     allocatorInfo.vulkanApiVersion = VULKAN_API_VERSION;
 
-    if(m_MemoryBudgetEnabled)
+    if (m_MemoryBudgetEnabled)
     {
         allocatorInfo.flags |= VMA_ALLOCATOR_CREATE_EXT_MEMORY_BUDGET_BIT;
     }
 
     res = vmaCreateAllocator(&allocatorInfo, &m_Allocator);
-    if(res != VK_SUCCESS)
+    if (res != VK_SUCCESS)
     {
         printf("ERROR: vmaCreateAllocator failed (%d)\n", res);
         return RESULT_ERROR_VULKAN;
@@ -2277,12 +2284,12 @@ int Player::InitVulkan()
 
     // Create command pool
 
-    VkCommandPoolCreateInfo cmdPoolCreateInfo = { VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO };
+    VkCommandPoolCreateInfo cmdPoolCreateInfo = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
     cmdPoolCreateInfo.queueFamilyIndex = m_TransferQueueFamilyIndex;
     cmdPoolCreateInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
 
     res = vkCreateCommandPool(m_Device, &cmdPoolCreateInfo, nullptr, &m_CommandPool);
-    if(res != VK_SUCCESS)
+    if (res != VK_SUCCESS)
     {
         printf("ERROR: vkCreateCommandPool failed (%d)\n", res);
         return RESULT_ERROR_VULKAN;
@@ -2290,12 +2297,12 @@ int Player::InitVulkan()
 
     // Create command buffer
 
-    VkCommandBufferAllocateInfo cmdBufAllocInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO };
+    VkCommandBufferAllocateInfo cmdBufAllocInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO};
     cmdBufAllocInfo.commandBufferCount = 1;
     cmdBufAllocInfo.commandPool = m_CommandPool;
     cmdBufAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     res = vkAllocateCommandBuffers(m_Device, &cmdBufAllocInfo, &m_CommandBuffer);
-    if(res != VK_SUCCESS)
+    if (res != VK_SUCCESS)
     {
         printf("ERROR: vkAllocateCommandBuffers failed (%d)\n", res);
         return RESULT_ERROR_VULKAN;
@@ -2306,13 +2313,13 @@ int Player::InitVulkan()
 
 void Player::FinalizeVulkan()
 {
-    if(!m_DefragmentationContexts.empty())
+    if (!m_DefragmentationContexts.empty())
     {
         printf("WARNING: Defragmentation contexts not destroyed: %zu.\n", m_DefragmentationContexts.size());
 
-        if(CLEANUP_LEAKED_OBJECTS)
+        if (CLEANUP_LEAKED_OBJECTS)
         {
-            for(const auto& it : m_DefragmentationContexts)
+            for (const auto &it : m_DefragmentationContexts)
             {
                 vmaDefragmentationEnd(m_Allocator, it.second);
             }
@@ -2321,13 +2328,13 @@ void Player::FinalizeVulkan()
         m_DefragmentationContexts.clear();
     }
 
-    if(!m_Allocations.empty())
+    if (!m_Allocations.empty())
     {
         printf("WARNING: Allocations not destroyed: %zu.\n", m_Allocations.size());
 
-        if(CLEANUP_LEAKED_OBJECTS)
+        if (CLEANUP_LEAKED_OBJECTS)
         {
-            for(const auto it : m_Allocations)
+            for (const auto it : m_Allocations)
             {
                 Destroy(it.second);
             }
@@ -2336,13 +2343,13 @@ void Player::FinalizeVulkan()
         m_Allocations.clear();
     }
 
-    if(!m_Pools.empty())
+    if (!m_Pools.empty())
     {
         printf("WARNING: Custom pools not destroyed: %zu.\n", m_Pools.size());
 
-        if(CLEANUP_LEAKED_OBJECTS)
+        if (CLEANUP_LEAKED_OBJECTS)
         {
-            for(const auto it : m_Pools)
+            for (const auto it : m_Pools)
             {
                 vmaDestroyPool(m_Allocator, it.second.pool);
             }
@@ -2353,37 +2360,37 @@ void Player::FinalizeVulkan()
 
     vkDeviceWaitIdle(m_Device);
 
-    if(m_CommandBuffer != VK_NULL_HANDLE)
+    if (m_CommandBuffer != VK_NULL_HANDLE)
     {
         vkFreeCommandBuffers(m_Device, m_CommandPool, 1, &m_CommandBuffer);
         m_CommandBuffer = VK_NULL_HANDLE;
     }
 
-    if(m_CommandPool != VK_NULL_HANDLE)
+    if (m_CommandPool != VK_NULL_HANDLE)
     {
         vkDestroyCommandPool(m_Device, m_CommandPool, nullptr);
         m_CommandPool = VK_NULL_HANDLE;
     }
 
-    if(m_Allocator != VK_NULL_HANDLE)
+    if (m_Allocator != VK_NULL_HANDLE)
     {
         vmaDestroyAllocator(m_Allocator);
         m_Allocator = nullptr;
     }
 
-    if(m_Device != VK_NULL_HANDLE)
+    if (m_Device != VK_NULL_HANDLE)
     {
         vkDestroyDevice(m_Device, nullptr);
         m_Device = nullptr;
     }
 
-    if(m_pvkDestroyDebugReportCallbackEXT && m_hCallback != VK_NULL_HANDLE)
+    if (m_pvkDestroyDebugReportCallbackEXT && m_hCallback != VK_NULL_HANDLE)
     {
         m_pvkDestroyDebugReportCallbackEXT(m_VulkanInstance, m_hCallback, nullptr);
         m_hCallback = VK_NULL_HANDLE;
     }
 
-    if(m_VulkanInstance != VK_NULL_HANDLE)
+    if (m_VulkanInstance != VK_NULL_HANDLE)
     {
         vkDestroyInstance(m_VulkanInstance, NULL);
         m_VulkanInstance = VK_NULL_HANDLE;
@@ -2393,24 +2400,22 @@ void Player::FinalizeVulkan()
 void Player::RegisterDebugCallbacks()
 {
     m_pvkCreateDebugReportCallbackEXT =
-        reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>
-            (vkGetInstanceProcAddr(m_VulkanInstance, "vkCreateDebugReportCallbackEXT"));
+        reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(vkGetInstanceProcAddr(m_VulkanInstance, "vkCreateDebugReportCallbackEXT"));
     m_pvkDebugReportMessageEXT =
-        reinterpret_cast<PFN_vkDebugReportMessageEXT>
-            (vkGetInstanceProcAddr(m_VulkanInstance, "vkDebugReportMessageEXT"));
+        reinterpret_cast<PFN_vkDebugReportMessageEXT>(vkGetInstanceProcAddr(m_VulkanInstance, "vkDebugReportMessageEXT"));
     m_pvkDestroyDebugReportCallbackEXT =
-        reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>
-            (vkGetInstanceProcAddr(m_VulkanInstance, "vkDestroyDebugReportCallbackEXT"));
+        reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(vkGetInstanceProcAddr(m_VulkanInstance, "vkDestroyDebugReportCallbackEXT"));
     assert(m_pvkCreateDebugReportCallbackEXT);
     assert(m_pvkDebugReportMessageEXT);
     assert(m_pvkDestroyDebugReportCallbackEXT);
 
-    VkDebugReportCallbackCreateInfoEXT callbackCreateInfo = { VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT };
+    VkDebugReportCallbackCreateInfoEXT callbackCreateInfo = {VK_STRUCTURE_TYPE_DEBUG_REPORT_CREATE_INFO_EXT};
     callbackCreateInfo.flags = //VK_DEBUG_REPORT_INFORMATION_BIT_EXT |
         VK_DEBUG_REPORT_ERROR_BIT_EXT |
         VK_DEBUG_REPORT_WARNING_BIT_EXT |
         VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT /*|
-        VK_DEBUG_REPORT_DEBUG_BIT_EXT*/;
+        VK_DEBUG_REPORT_DEBUG_BIT_EXT*/
+        ;
     callbackCreateInfo.pfnCallback = &MyDebugReportCallback;
 
     VkResult res = m_pvkCreateDebugReportCallbackEXT(m_VulkanInstance, &callbackCreateInfo, nullptr, &m_hCallback);
@@ -2426,15 +2431,15 @@ void Player::Defragment()
     const size_t allocCount = m_Allocations.size();
     std::vector<VmaAllocation> allocations(allocCount);
     size_t notNullAllocCount = 0;
-    for(const auto& it : m_Allocations)
+    for (const auto &it : m_Allocations)
     {
-        if(it.second.allocation != VK_NULL_HANDLE)
+        if (it.second.allocation != VK_NULL_HANDLE)
         {
             allocations[notNullAllocCount] = it.second.allocation;
             ++notNullAllocCount;
         }
     }
-    if(notNullAllocCount == 0)
+    if (notNullAllocCount == 0)
     {
         printf("    Nothing to defragment.\n");
         return;
@@ -2445,10 +2450,10 @@ void Player::Defragment()
 
     VmaDefragmentationStats defragStats = {};
 
-    VkCommandBufferBeginInfo cmdBufBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+    VkCommandBufferBeginInfo cmdBufBeginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     cmdBufBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
     VkResult res = vkBeginCommandBuffer(m_CommandBuffer, &cmdBufBeginInfo);
-    if(res != VK_SUCCESS)
+    if (res != VK_SUCCESS)
     {
         printf("ERROR: vkBeginCommandBuffer failed (%d)\n", res);
         return;
@@ -2469,14 +2474,14 @@ void Player::Defragment()
 
     VmaDefragmentationContext defragCtx = VK_NULL_HANDLE;
     res = vmaDefragmentationBegin(m_Allocator, &defragInfo, &defragStats, &defragCtx);
-    
+
     const time_point timeAfterDefragBegin = std::chrono::high_resolution_clock::now();
 
     vkEndCommandBuffer(m_CommandBuffer);
 
-    if(res >= VK_SUCCESS)
+    if (res >= VK_SUCCESS)
     {
-        VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+        VkSubmitInfo submitInfo = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = &m_CommandBuffer;
         vkQueueSubmit(m_TransferQueue, 1, &submitInfo, VK_NULL_HANDLE);
@@ -2489,24 +2494,24 @@ void Player::Defragment()
         const time_point timeAfterDefragEnd = std::chrono::high_resolution_clock::now();
 
         const duration defragDurationBegin = timeAfterDefragBegin - timeBeg;
-        const duration defragDurationGpu   = timeAfterGpu - timeAfterDefragBegin;
-        const duration defragDurationEnd   = timeAfterDefragEnd - timeAfterGpu;
+        const duration defragDurationGpu = timeAfterGpu - timeAfterDefragBegin;
+        const duration defragDurationEnd = timeAfterDefragEnd - timeAfterGpu;
 
         // If anything changed.
-        if(defragStats.allocationsMoved > 0)
+        if (defragStats.allocationsMoved > 0)
         {
             // Go over allocation that changed and destroy their buffers and images.
             size_t i = 0;
-            for(auto& it : m_Allocations)
+            for (auto &it : m_Allocations)
             {
-                if(allocationsChanged[i] != VK_FALSE)
+                if (allocationsChanged[i] != VK_FALSE)
                 {
-                    if(it.second.buffer != VK_NULL_HANDLE)
+                    if (it.second.buffer != VK_NULL_HANDLE)
                     {
                         vkDestroyBuffer(m_Device, it.second.buffer, nullptr);
                         it.second.buffer = VK_NULL_HANDLE;
                     }
-                    if(it.second.image != VK_NULL_HANDLE)
+                    if (it.second.image != VK_NULL_HANDLE)
                     {
                         vkDestroyImage(m_Device, it.second.image, nullptr);
                         it.second.image = VK_NULL_HANDLE;
@@ -2547,7 +2552,7 @@ void Player::Defragment()
 
 void Player::PrintStats()
 {
-    if(g_Verbosity == VERBOSITY::MINIMUM)
+    if (g_Verbosity == VERBOSITY::MINIMUM)
     {
         return;
     }
@@ -2555,16 +2560,16 @@ void Player::PrintStats()
     m_Stats.PrintDeviceMemStats();
 
     printf("Statistics:\n");
-    if(m_Stats.GetAllocationCreationCount() > 0)
+    if (m_Stats.GetAllocationCreationCount() > 0)
     {
         printf("    Total allocations created: %zu\n", m_Stats.GetAllocationCreationCount());
     }
 
     // Buffers
-    if(m_Stats.GetBufferCreationCount())
+    if (m_Stats.GetBufferCreationCount())
     {
         printf("    Total buffers created: %zu\n", m_Stats.GetBufferCreationCount());
-        if(g_Verbosity == VERBOSITY::MAXIMUM)
+        if (g_Verbosity == VERBOSITY::MAXIMUM)
         {
             printf("        Class 0 (indirect/vertex/index): %zu\n", m_Stats.GetBufferCreationCount(0));
             printf("        Class 1 (storage): %zu\n", m_Stats.GetBufferCreationCount(1));
@@ -2572,7 +2577,7 @@ void Player::PrintStats()
             printf("        Class 3 (other): %zu\n", m_Stats.GetBufferCreationCount(3));
         }
     }
-    
+
     // Images
     const size_t imageCreationCount =
         m_Stats.GetImageCreationCount(0) +
@@ -2580,29 +2585,29 @@ void Player::PrintStats()
         m_Stats.GetImageCreationCount(2) +
         m_Stats.GetImageCreationCount(3) +
         m_Stats.GetLinearImageCreationCount();
-    if(imageCreationCount > 0)
+    if (imageCreationCount > 0)
     {
         printf("    Total images created: %zu\n", imageCreationCount);
-        if(g_Verbosity == VERBOSITY::MAXIMUM)
+        if (g_Verbosity == VERBOSITY::MAXIMUM)
         {
             printf("        Class 0 (depth/stencil): %zu\n", m_Stats.GetImageCreationCount(0));
             printf("        Class 1 (attachment): %zu\n", m_Stats.GetImageCreationCount(1));
             printf("        Class 2 (sampled): %zu\n", m_Stats.GetImageCreationCount(2));
             printf("        Class 3 (other): %zu\n", m_Stats.GetImageCreationCount(3));
-            if(m_Stats.GetLinearImageCreationCount() > 0)
+            if (m_Stats.GetLinearImageCreationCount() > 0)
             {
                 printf("        LINEAR tiling: %zu\n", m_Stats.GetLinearImageCreationCount());
             }
         }
     }
-    
-    if(m_Stats.GetPoolCreationCount() > 0)
+
+    if (m_Stats.GetPoolCreationCount() > 0)
     {
         printf("    Total custom pools created: %zu\n", m_Stats.GetPoolCreationCount());
     }
 
     float lastTime;
-    if(!m_LastLineTimeStr.empty() && StrRangeToFloat(StrRange(m_LastLineTimeStr), lastTime))
+    if (!m_LastLineTimeStr.empty() && StrRangeToFloat(StrRange(m_LastLineTimeStr), lastTime))
     {
         std::string origTimeStr;
         SecondsToFriendlyStr(lastTime, origTimeStr);
@@ -2611,18 +2616,18 @@ void Player::PrintStats()
 
     // Thread statistics.
     const size_t threadCount = m_Threads.size();
-    if(threadCount > 1)
+    if (threadCount > 1)
     {
         uint32_t threadCallCountMax = 0;
         uint32_t threadCallCountSum = 0;
-        for(const auto& it : m_Threads)
+        for (const auto &it : m_Threads)
         {
             threadCallCountMax = std::max(threadCallCountMax, it.second.callCount);
             threadCallCountSum += it.second.callCount;
         }
         printf("    Threads making calls to VMA: %zu\n", threadCount);
         printf("        %.2f%% calls from most active thread.\n",
-            (float)threadCallCountMax * 100.f / (float)threadCallCountSum);
+               (float)threadCallCountMax * 100.f / (float)threadCallCountSum);
     }
     else
     {
@@ -2630,13 +2635,13 @@ void Player::PrintStats()
     }
 
     // Function call count
-    if(g_Verbosity == VERBOSITY::MAXIMUM)
+    if (g_Verbosity == VERBOSITY::MAXIMUM)
     {
         printf("    Function call count:\n");
-        const size_t* const functionCallCount = m_Stats.GetFunctionCallCount();
-        for(size_t i = 0; i < (size_t)VMA_FUNCTION::Count; ++i)
+        const size_t *const functionCallCount = m_Stats.GetFunctionCallCount();
+        for (size_t i = 0; i < (size_t)VMA_FUNCTION::Count; ++i)
         {
-            if(functionCallCount[i] > 0)
+            if (functionCallCount[i] > 0)
             {
                 printf("        %s %zu\n", VMA_FUNCTION_NAMES[i], functionCallCount[i]);
             }
@@ -2644,28 +2649,28 @@ void Player::PrintStats()
     }
 
     // Detailed stats
-    if(g_Verbosity == VERBOSITY::MAXIMUM)
+    if (g_Verbosity == VERBOSITY::MAXIMUM)
     {
         m_Stats.PrintDetailedStats();
     }
 
-    if(g_MemStatsEnabled)
+    if (g_MemStatsEnabled)
     {
         m_Stats.PrintMemStats();
     }
 }
 
-bool Player::ValidateFunctionParameterCount(size_t lineNumber, const CsvSplit& csvSplit, size_t expectedParamCount, bool lastUnbound)
+bool Player::ValidateFunctionParameterCount(size_t lineNumber, const CsvSplit &csvSplit, size_t expectedParamCount, bool lastUnbound)
 {
     bool ok;
-    if(lastUnbound)
+    if (lastUnbound)
         ok = csvSplit.GetCount() >= FIRST_PARAM_INDEX + expectedParamCount - 1;
     else
         ok = csvSplit.GetCount() == FIRST_PARAM_INDEX + expectedParamCount;
 
-    if(!ok)
+    if (!ok)
     {
-        if(IssueWarning())
+        if (IssueWarning())
         {
             printf("Line %zu: Incorrect number of function parameters.\n", lineNumber);
         }
@@ -2674,16 +2679,16 @@ bool Player::ValidateFunctionParameterCount(size_t lineNumber, const CsvSplit& c
     return ok;
 }
 
-bool Player::PrepareUserData(size_t lineNumber, uint32_t allocCreateFlags, const StrRange& userDataColumn, const StrRange& wholeLine, void*& outUserData)
+bool Player::PrepareUserData(size_t lineNumber, uint32_t allocCreateFlags, const StrRange &userDataColumn, const StrRange &wholeLine, void *&outUserData)
 {
-    if(!g_UserDataEnabled)
+    if (!g_UserDataEnabled)
     {
         outUserData = nullptr;
         return true;
     }
 
     // String
-    if((allocCreateFlags & VMA_ALLOCATION_CREATE_USER_DATA_COPY_STRING_BIT) != 0)
+    if ((allocCreateFlags & VMA_ALLOCATION_CREATE_USER_DATA_COPY_STRING_BIT) != 0)
     {
         const size_t len = wholeLine.end - userDataColumn.beg;
         m_UserDataTmpStr.resize(len + 1);
@@ -2696,14 +2701,14 @@ bool Player::PrepareUserData(size_t lineNumber, uint32_t allocCreateFlags, const
     else
     {
         uint64_t pUserData = 0;
-        if(StrRangeToPtr(userDataColumn, pUserData))
+        if (StrRangeToPtr(userDataColumn, pUserData))
         {
-            outUserData = (void*)(uintptr_t)pUserData;
+            outUserData = (void *)(uintptr_t)pUserData;
             return true;
         }
     }
 
-    if(IssueWarning())
+    if (IssueWarning())
     {
         printf("Line %zu: Invalid pUserData.\n", lineNumber);
     }
@@ -2713,7 +2718,7 @@ bool Player::PrepareUserData(size_t lineNumber, uint32_t allocCreateFlags, const
 
 void Player::UpdateMemStats()
 {
-    if(!g_MemStatsEnabled)
+    if (!g_MemStatsEnabled)
     {
         return;
     }
@@ -2723,16 +2728,16 @@ void Player::UpdateMemStats()
     m_Stats.UpdateMemStats(stats);
 }
 
-void Player::ExecuteCreatePool(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteCreatePool(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::CreatePool);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 7, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 7, false))
     {
         VmaPoolCreateInfo poolCreateInfo = {};
         uint64_t origPtr = 0;
 
-        if(StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), poolCreateInfo.memoryTypeIndex) &&
+        if (StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), poolCreateInfo.memoryTypeIndex) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), poolCreateInfo.flags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 2), poolCreateInfo.blockSize) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 3), poolCreateInfo.minBlockCount) &&
@@ -2745,9 +2750,9 @@ void Player::ExecuteCreatePool(size_t lineNumber, const CsvSplit& csvSplit)
             Pool poolDesc = {};
             VkResult res = vmaCreatePool(m_Allocator, &poolCreateInfo, &poolDesc.pool);
 
-            if(origPtr)
+            if (origPtr)
             {
-                if(res == VK_SUCCESS)
+                if (res == VK_SUCCESS)
                 {
                     // Originally succeeded, currently succeeded.
                     // Just save pointer (done below).
@@ -2756,16 +2761,16 @@ void Player::ExecuteCreatePool(size_t lineNumber, const CsvSplit& csvSplit)
                 {
                     // Originally succeeded, currently failed.
                     // Print warning. Save null pointer.
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: vmaCreatePool failed (%d), while originally succeeded.\n", lineNumber, res);
                     }
-               }
+                }
 
                 const auto existingIt = m_Pools.find(origPtr);
-                if(existingIt != m_Pools.end())
+                if (existingIt != m_Pools.end())
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Pool %llX already exists.\n", lineNumber, origPtr);
                     }
@@ -2774,11 +2779,11 @@ void Player::ExecuteCreatePool(size_t lineNumber, const CsvSplit& csvSplit)
             }
             else
             {
-                if(res == VK_SUCCESS)
+                if (res == VK_SUCCESS)
                 {
                     // Originally failed, currently succeeded.
                     // Print warning, destroy the pool.
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: vmaCreatePool succeeded, originally failed.\n", lineNumber);
                     }
@@ -2789,7 +2794,7 @@ void Player::ExecuteCreatePool(size_t lineNumber, const CsvSplit& csvSplit)
                 {
                     // Originally failed, currently failed.
                     // Print warning.
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: vmaCreatePool failed (%d), originally also failed.\n", lineNumber, res);
                     }
@@ -2800,7 +2805,7 @@ void Player::ExecuteCreatePool(size_t lineNumber, const CsvSplit& csvSplit)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaCreatePool.\n", lineNumber);
             }
@@ -2808,20 +2813,20 @@ void Player::ExecuteCreatePool(size_t lineNumber, const CsvSplit& csvSplit)
     }
 }
 
-void Player::ExecuteDestroyPool(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteDestroyPool(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::DestroyPool);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
     {
         uint64_t origPtr = 0;
 
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
         {
-            if(origPtr != 0)
+            if (origPtr != 0)
             {
                 const auto it = m_Pools.find(origPtr);
-                if(it != m_Pools.end())
+                if (it != m_Pools.end())
                 {
                     vmaDestroyPool(m_Allocator, it->second.pool);
                     UpdateMemStats();
@@ -2829,7 +2834,7 @@ void Player::ExecuteDestroyPool(size_t lineNumber, const CsvSplit& csvSplit)
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Pool %llX not found.\n", lineNumber, origPtr);
                     }
@@ -2838,7 +2843,7 @@ void Player::ExecuteDestroyPool(size_t lineNumber, const CsvSplit& csvSplit)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaDestroyPool.\n", lineNumber);
             }
@@ -2846,25 +2851,25 @@ void Player::ExecuteDestroyPool(size_t lineNumber, const CsvSplit& csvSplit)
     }
 }
 
-void Player::ExecuteSetAllocationUserData(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteSetAllocationUserData(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::SetAllocationUserData);
 
-    if(!g_UserDataEnabled)
+    if (!g_UserDataEnabled)
     {
         return;
     }
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 2, true))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 2, true))
     {
         uint64_t origPtr = 0;
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
         {
             const auto it = m_Allocations.find(origPtr);
-            if(it != m_Allocations.end())
+            if (it != m_Allocations.end())
             {
-                void* pUserData = nullptr;
-                if(csvSplit.GetCount() > FIRST_PARAM_INDEX + 1)
+                void *pUserData = nullptr;
+                if (csvSplit.GetCount() > FIRST_PARAM_INDEX + 1)
                 {
                     PrepareUserData(
                         lineNumber,
@@ -2878,7 +2883,7 @@ void Player::ExecuteSetAllocationUserData(size_t lineNumber, const CsvSplit& csv
             }
             else
             {
-                if(IssueWarning())
+                if (IssueWarning())
                 {
                     printf("Line %zu: Allocation %llX not found.\n", lineNumber, origPtr);
                 }
@@ -2886,7 +2891,7 @@ void Player::ExecuteSetAllocationUserData(size_t lineNumber, const CsvSplit& csv
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaSetAllocationUserData.\n", lineNumber);
             }
@@ -2894,23 +2899,23 @@ void Player::ExecuteSetAllocationUserData(size_t lineNumber, const CsvSplit& csv
     }
 }
 
-void Player::ExecuteCreateBuffer(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteCreateBuffer(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::CreateBuffer);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 12, true))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 12, true))
     {
-        VkBufferCreateInfo bufCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+        VkBufferCreateInfo bufCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
         VmaAllocationCreateInfo allocCreateInfo = {};
         uint64_t origPool = 0;
         uint64_t origPtr = 0;
 
-        if(StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), bufCreateInfo.flags) &&
+        if (StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), bufCreateInfo.flags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), bufCreateInfo.size) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 2), bufCreateInfo.usage) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 3), (uint32_t&)bufCreateInfo.sharingMode) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 3), (uint32_t &)bufCreateInfo.sharingMode) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 4), allocCreateInfo.flags) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 5), (uint32_t&)allocCreateInfo.usage) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 5), (uint32_t &)allocCreateInfo.usage) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 6), allocCreateInfo.requiredFlags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 7), allocCreateInfo.preferredFlags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 8), allocCreateInfo.memoryTypeBits) &&
@@ -2919,7 +2924,7 @@ void Player::ExecuteCreateBuffer(size_t lineNumber, const CsvSplit& csvSplit)
         {
             FindPool(lineNumber, origPool, allocCreateInfo.pool);
 
-            if(csvSplit.GetCount() > FIRST_PARAM_INDEX + 11)
+            if (csvSplit.GetCount() > FIRST_PARAM_INDEX + 11)
             {
                 PrepareUserData(
                     lineNumber,
@@ -2935,7 +2940,7 @@ void Player::ExecuteCreateBuffer(size_t lineNumber, const CsvSplit& csvSplit)
             // Forcing VK_SHARING_MODE_EXCLUSIVE because we use only one queue anyway.
             bufCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-            Allocation allocDesc = { };
+            Allocation allocDesc = {};
             allocDesc.allocationFlags = allocCreateInfo.flags;
             VkResult res = vmaCreateBuffer(m_Allocator, &bufCreateInfo, &allocCreateInfo, &allocDesc.buffer, &allocDesc.allocation, nullptr);
             UpdateMemStats();
@@ -2943,7 +2948,7 @@ void Player::ExecuteCreateBuffer(size_t lineNumber, const CsvSplit& csvSplit)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaCreateBuffer.\n", lineNumber);
             }
@@ -2951,18 +2956,18 @@ void Player::ExecuteCreateBuffer(size_t lineNumber, const CsvSplit& csvSplit)
     }
 }
 
-void Player::DestroyAllocation(size_t lineNumber, const CsvSplit& csvSplit, const char* functionName)
+void Player::DestroyAllocation(size_t lineNumber, const CsvSplit &csvSplit, const char *functionName)
 {
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
     {
         uint64_t origAllocPtr = 0;
 
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origAllocPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origAllocPtr))
         {
-            if(origAllocPtr != 0)
+            if (origAllocPtr != 0)
             {
                 const auto it = m_Allocations.find(origAllocPtr);
-                if(it != m_Allocations.end())
+                if (it != m_Allocations.end())
                 {
                     Destroy(it->second);
                     UpdateMemStats();
@@ -2970,7 +2975,7 @@ void Player::DestroyAllocation(size_t lineNumber, const CsvSplit& csvSplit, cons
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Allocation %llX not found.\n", lineNumber, origAllocPtr);
                     }
@@ -2979,7 +2984,7 @@ void Player::DestroyAllocation(size_t lineNumber, const CsvSplit& csvSplit, cons
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for %s.\n", lineNumber, functionName);
             }
@@ -2987,20 +2992,20 @@ void Player::DestroyAllocation(size_t lineNumber, const CsvSplit& csvSplit, cons
     }
 }
 
-void Player::PrintStats(const VmaStats& stats, const char* suffix)
+void Player::PrintStats(const VmaStats &stats, const char *suffix)
 {
     printf("    VmaStats %s:\n", suffix);
     printf("        total:\n");
     PrintStatInfo(stats.total);
 
-    if(g_Verbosity == VERBOSITY::MAXIMUM)
+    if (g_Verbosity == VERBOSITY::MAXIMUM)
     {
-        for(uint32_t i = 0; i < m_MemProps->memoryHeapCount; ++i)
+        for (uint32_t i = 0; i < m_MemProps->memoryHeapCount; ++i)
         {
             printf("        memoryHeap[%u]:\n", i);
             PrintStatInfo(stats.memoryHeap[i]);
         }
-        for(uint32_t i = 0; i < m_MemProps->memoryTypeCount; ++i)
+        for (uint32_t i = 0; i < m_MemProps->memoryTypeCount; ++i)
         {
             printf("        memoryType[%u]:\n", i);
             PrintStatInfo(stats.memoryType[i]);
@@ -3008,7 +3013,7 @@ void Player::PrintStats(const VmaStats& stats, const char* suffix)
     }
 }
 
-void Player::PrintStatInfo(const VmaStatInfo& info)
+void Player::PrintStatInfo(const VmaStatInfo &info)
 {
     printf("            blockCount: %u\n", info.blockCount);
     printf("            allocationCount: %u\n", info.allocationCount);
@@ -3023,32 +3028,32 @@ void Player::PrintStatInfo(const VmaStatInfo& info)
     printf("            unusedRangeSizeMax: %llu\n", info.unusedRangeSizeMax);
 }
 
-void Player::ExecuteCreateImage(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteCreateImage(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::CreateImage);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 21, true))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 21, true))
     {
-        VkImageCreateInfo imageCreateInfo = { VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO };
+        VkImageCreateInfo imageCreateInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
         VmaAllocationCreateInfo allocCreateInfo = {};
         uint64_t origPool = 0;
         uint64_t origPtr = 0;
 
-        if(StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), imageCreateInfo.flags) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), (uint32_t&)imageCreateInfo.imageType) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 2), (uint32_t&)imageCreateInfo.format) &&
+        if (StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), imageCreateInfo.flags) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), (uint32_t &)imageCreateInfo.imageType) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 2), (uint32_t &)imageCreateInfo.format) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 3), imageCreateInfo.extent.width) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 4), imageCreateInfo.extent.height) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 5), imageCreateInfo.extent.depth) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 6), imageCreateInfo.mipLevels) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 7), imageCreateInfo.arrayLayers) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 8), (uint32_t&)imageCreateInfo.samples) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 9), (uint32_t&)imageCreateInfo.tiling) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 8), (uint32_t &)imageCreateInfo.samples) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 9), (uint32_t &)imageCreateInfo.tiling) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 10), imageCreateInfo.usage) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 11), (uint32_t&)imageCreateInfo.sharingMode) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 12), (uint32_t&)imageCreateInfo.initialLayout) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 11), (uint32_t &)imageCreateInfo.sharingMode) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 12), (uint32_t &)imageCreateInfo.initialLayout) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 13), allocCreateInfo.flags) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 14), (uint32_t&)allocCreateInfo.usage) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 14), (uint32_t &)allocCreateInfo.usage) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 15), allocCreateInfo.requiredFlags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 16), allocCreateInfo.preferredFlags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 17), allocCreateInfo.memoryTypeBits) &&
@@ -3057,7 +3062,7 @@ void Player::ExecuteCreateImage(size_t lineNumber, const CsvSplit& csvSplit)
         {
             FindPool(lineNumber, origPool, allocCreateInfo.pool);
 
-            if(csvSplit.GetCount() > FIRST_PARAM_INDEX + 20)
+            if (csvSplit.GetCount() > FIRST_PARAM_INDEX + 20)
             {
                 PrepareUserData(
                     lineNumber,
@@ -3081,7 +3086,7 @@ void Player::ExecuteCreateImage(size_t lineNumber, const CsvSplit& csvSplit)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaCreateImage.\n", lineNumber);
             }
@@ -3089,24 +3094,24 @@ void Player::ExecuteCreateImage(size_t lineNumber, const CsvSplit& csvSplit)
     }
 }
 
-void Player::ExecuteFreeMemoryPages(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteFreeMemoryPages(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::FreeMemoryPages);
-    
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
+
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
     {
         std::vector<uint64_t> origAllocPtrs;
-        if(StrRangeToPtrList(csvSplit.GetRange(FIRST_PARAM_INDEX), origAllocPtrs))
+        if (StrRangeToPtrList(csvSplit.GetRange(FIRST_PARAM_INDEX), origAllocPtrs))
         {
             const size_t allocCount = origAllocPtrs.size();
             size_t notNullCount = 0;
-            for(size_t i = 0; i < allocCount; ++i)
+            for (size_t i = 0; i < allocCount; ++i)
             {
                 const uint64_t origAllocPtr = origAllocPtrs[i];
-                if(origAllocPtr != 0)
+                if (origAllocPtr != 0)
                 {
                     const auto it = m_Allocations.find(origAllocPtr);
-                    if(it != m_Allocations.end())
+                    if (it != m_Allocations.end())
                     {
                         Destroy(it->second);
                         m_Allocations.erase(it);
@@ -3114,21 +3119,21 @@ void Player::ExecuteFreeMemoryPages(size_t lineNumber, const CsvSplit& csvSplit)
                     }
                     else
                     {
-                        if(IssueWarning())
+                        if (IssueWarning())
                         {
                             printf("Line %zu: Allocation %llX not found.\n", lineNumber, origAllocPtr);
                         }
                     }
                 }
             }
-            if(notNullCount)
+            if (notNullCount)
             {
                 UpdateMemStats();
             }
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaFreeMemoryPages.\n", lineNumber);
             }
@@ -3136,15 +3141,15 @@ void Player::ExecuteFreeMemoryPages(size_t lineNumber, const CsvSplit& csvSplit)
     }
 }
 
-void Player::ExecuteCreateLostAllocation(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteCreateLostAllocation(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::CreateLostAllocation);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
     {
         uint64_t origPtr = 0;
 
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
         {
             Allocation allocDesc = {};
             vmaCreateLostAllocation(m_Allocator, &allocDesc.allocation);
@@ -3155,7 +3160,7 @@ void Player::ExecuteCreateLostAllocation(size_t lineNumber, const CsvSplit& csvS
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaCreateLostAllocation.\n", lineNumber);
             }
@@ -3163,22 +3168,22 @@ void Player::ExecuteCreateLostAllocation(size_t lineNumber, const CsvSplit& csvS
     }
 }
 
-void Player::ExecuteAllocateMemory(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteAllocateMemory(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::AllocateMemory);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 11, true))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 11, true))
     {
         VkMemoryRequirements memReq = {};
         VmaAllocationCreateInfo allocCreateInfo = {};
         uint64_t origPool = 0;
         uint64_t origPtr = 0;
 
-        if(StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), memReq.size) &&
+        if (StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), memReq.size) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), memReq.alignment) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 2), memReq.memoryTypeBits) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 3), allocCreateInfo.flags) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 4), (uint32_t&)allocCreateInfo.usage) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 4), (uint32_t &)allocCreateInfo.usage) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 5), allocCreateInfo.requiredFlags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 6), allocCreateInfo.preferredFlags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 7), allocCreateInfo.memoryTypeBits) &&
@@ -3187,7 +3192,7 @@ void Player::ExecuteAllocateMemory(size_t lineNumber, const CsvSplit& csvSplit)
         {
             FindPool(lineNumber, origPool, allocCreateInfo.pool);
 
-            if(csvSplit.GetCount() > FIRST_PARAM_INDEX + 10)
+            if (csvSplit.GetCount() > FIRST_PARAM_INDEX + 10)
             {
                 PrepareUserData(
                     lineNumber,
@@ -3207,7 +3212,7 @@ void Player::ExecuteAllocateMemory(size_t lineNumber, const CsvSplit& csvSplit)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaAllocateMemory.\n", lineNumber);
             }
@@ -3215,22 +3220,22 @@ void Player::ExecuteAllocateMemory(size_t lineNumber, const CsvSplit& csvSplit)
     }
 }
 
-void Player::ExecuteAllocateMemoryPages(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteAllocateMemoryPages(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::AllocateMemoryPages);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 11, true))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 11, true))
     {
         VkMemoryRequirements memReq = {};
         VmaAllocationCreateInfo allocCreateInfo = {};
         uint64_t origPool = 0;
         std::vector<uint64_t> origPtrs;
 
-        if(StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), memReq.size) &&
+        if (StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), memReq.size) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), memReq.alignment) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 2), memReq.memoryTypeBits) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 3), allocCreateInfo.flags) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 4), (uint32_t&)allocCreateInfo.usage) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 4), (uint32_t &)allocCreateInfo.usage) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 5), allocCreateInfo.requiredFlags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 6), allocCreateInfo.preferredFlags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 7), allocCreateInfo.memoryTypeBits) &&
@@ -3238,11 +3243,11 @@ void Player::ExecuteAllocateMemoryPages(size_t lineNumber, const CsvSplit& csvSp
             StrRangeToPtrList(csvSplit.GetRange(FIRST_PARAM_INDEX + 9), origPtrs))
         {
             const size_t allocCount = origPtrs.size();
-            if(allocCount > 0)
+            if (allocCount > 0)
             {
                 FindPool(lineNumber, origPool, allocCreateInfo.pool);
 
-                if(csvSplit.GetCount() > FIRST_PARAM_INDEX + 10)
+                if (csvSplit.GetCount() > FIRST_PARAM_INDEX + 10)
                 {
                     PrepareUserData(
                         lineNumber,
@@ -3259,7 +3264,7 @@ void Player::ExecuteAllocateMemoryPages(size_t lineNumber, const CsvSplit& csvSp
                 std::vector<VmaAllocation> allocations(allocCount);
 
                 VkResult res = vmaAllocateMemoryPages(m_Allocator, &memReq, &allocCreateInfo, allocCount, allocations.data(), nullptr);
-                for(size_t i = 0; i < allocCount; ++i)
+                for (size_t i = 0; i < allocCount; ++i)
                 {
                     Allocation allocDesc = {};
                     allocDesc.allocationFlags = allocCreateInfo.flags;
@@ -3270,7 +3275,7 @@ void Player::ExecuteAllocateMemoryPages(size_t lineNumber, const CsvSplit& csvSp
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaAllocateMemoryPages.\n", lineNumber);
             }
@@ -3278,9 +3283,9 @@ void Player::ExecuteAllocateMemoryPages(size_t lineNumber, const CsvSplit& csvSp
     }
 }
 
-void Player::ExecuteAllocateMemoryForBufferOrImage(size_t lineNumber, const CsvSplit& csvSplit, OBJECT_TYPE objType)
+void Player::ExecuteAllocateMemoryForBufferOrImage(size_t lineNumber, const CsvSplit &csvSplit, OBJECT_TYPE objType)
 {
-    switch(objType)
+    switch (objType)
     {
     case OBJECT_TYPE::BUFFER:
         m_Stats.RegisterFunctionCall(VMA_FUNCTION::AllocateMemoryForBuffer);
@@ -3288,10 +3293,11 @@ void Player::ExecuteAllocateMemoryForBufferOrImage(size_t lineNumber, const CsvS
     case OBJECT_TYPE::IMAGE:
         m_Stats.RegisterFunctionCall(VMA_FUNCTION::AllocateMemoryForImage);
         break;
-    default: assert(0);
+    default:
+        assert(0);
     }
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 13, true))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 13, true))
     {
         VkMemoryRequirements memReq = {};
         VmaAllocationCreateInfo allocCreateInfo = {};
@@ -3300,13 +3306,13 @@ void Player::ExecuteAllocateMemoryForBufferOrImage(size_t lineNumber, const CsvS
         uint64_t origPool = 0;
         uint64_t origPtr = 0;
 
-        if(StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), memReq.size) &&
+        if (StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), memReq.size) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), memReq.alignment) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 2), memReq.memoryTypeBits) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 3), allocCreateInfo.flags) &&
             StrRangeToBool(csvSplit.GetRange(FIRST_PARAM_INDEX + 4), requiresDedicatedAllocation) &&
             StrRangeToBool(csvSplit.GetRange(FIRST_PARAM_INDEX + 5), prefersDedicatedAllocation) &&
-            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 6), (uint32_t&)allocCreateInfo.usage) &&
+            StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 6), (uint32_t &)allocCreateInfo.usage) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 7), allocCreateInfo.requiredFlags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 8), allocCreateInfo.preferredFlags) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 9), allocCreateInfo.memoryTypeBits) &&
@@ -3315,7 +3321,7 @@ void Player::ExecuteAllocateMemoryForBufferOrImage(size_t lineNumber, const CsvS
         {
             FindPool(lineNumber, origPool, allocCreateInfo.pool);
 
-            if(csvSplit.GetCount() > FIRST_PARAM_INDEX + 12)
+            if (csvSplit.GetCount() > FIRST_PARAM_INDEX + 12)
             {
                 PrepareUserData(
                     lineNumber,
@@ -3328,14 +3334,14 @@ void Player::ExecuteAllocateMemoryForBufferOrImage(size_t lineNumber, const CsvS
             UpdateMemStats();
             m_Stats.RegisterCreateAllocation(allocCreateInfo);
 
-            if(requiresDedicatedAllocation || prefersDedicatedAllocation)
+            if (requiresDedicatedAllocation || prefersDedicatedAllocation)
             {
                 allocCreateInfo.flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
             }
 
-            if(!m_AllocateForBufferImageWarningIssued)
+            if (!m_AllocateForBufferImageWarningIssued)
             {
-                if(IssueWarning())
+                if (IssueWarning())
                 {
                     printf("Line %zu: vmaAllocateMemoryForBuffer or vmaAllocateMemoryForImage cannot be replayed accurately. Using vmaCreateAllocation instead.\n", lineNumber);
                 }
@@ -3349,7 +3355,7 @@ void Player::ExecuteAllocateMemoryForBufferOrImage(size_t lineNumber, const CsvS
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaAllocateMemoryForBuffer or vmaAllocateMemoryForImage.\n", lineNumber);
             }
@@ -3357,33 +3363,33 @@ void Player::ExecuteAllocateMemoryForBufferOrImage(size_t lineNumber, const CsvS
     }
 }
 
-void Player::ExecuteMapMemory(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteMapMemory(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::MapMemory);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
     {
         uint64_t origPtr = 0;
 
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
         {
-            if(origPtr != 0)
+            if (origPtr != 0)
             {
                 const auto it = m_Allocations.find(origPtr);
-                if(it != m_Allocations.end())
+                if (it != m_Allocations.end())
                 {
-                    if(it->second.allocation)
+                    if (it->second.allocation)
                     {
-                        void* pData;
+                        void *pData;
                         VkResult res = vmaMapMemory(m_Allocator, it->second.allocation, &pData);
-                        if(res != VK_SUCCESS)
+                        if (res != VK_SUCCESS)
                         {
                             printf("Line %zu: vmaMapMemory failed (%d)\n", lineNumber, res);
                         }
                     }
                     else
                     {
-                        if(IssueWarning())
+                        if (IssueWarning())
                         {
                             printf("Line %zu: Cannot call vmaMapMemory - allocation is null.\n", lineNumber);
                         }
@@ -3391,7 +3397,7 @@ void Player::ExecuteMapMemory(size_t lineNumber, const CsvSplit& csvSplit)
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Allocation %llX not found.\n", lineNumber, origPtr);
                     }
@@ -3400,7 +3406,7 @@ void Player::ExecuteMapMemory(size_t lineNumber, const CsvSplit& csvSplit)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaMapMemory.\n", lineNumber);
             }
@@ -3408,28 +3414,28 @@ void Player::ExecuteMapMemory(size_t lineNumber, const CsvSplit& csvSplit)
     }
 }
 
-void Player::ExecuteUnmapMemory(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteUnmapMemory(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::UnmapMemory);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
     {
         uint64_t origPtr = 0;
 
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
         {
-            if(origPtr != 0)
+            if (origPtr != 0)
             {
                 const auto it = m_Allocations.find(origPtr);
-                if(it != m_Allocations.end())
+                if (it != m_Allocations.end())
                 {
-                    if(it->second.allocation)
+                    if (it->second.allocation)
                     {
                         vmaUnmapMemory(m_Allocator, it->second.allocation);
                     }
                     else
                     {
-                        if(IssueWarning())
+                        if (IssueWarning())
                         {
                             printf("Line %zu: Cannot call vmaUnmapMemory - allocation is null.\n", lineNumber);
                         }
@@ -3437,7 +3443,7 @@ void Player::ExecuteUnmapMemory(size_t lineNumber, const CsvSplit& csvSplit)
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Allocation %llX not found.\n", lineNumber, origPtr);
                     }
@@ -3446,7 +3452,7 @@ void Player::ExecuteUnmapMemory(size_t lineNumber, const CsvSplit& csvSplit)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaMapMemory.\n", lineNumber);
             }
@@ -3454,32 +3460,32 @@ void Player::ExecuteUnmapMemory(size_t lineNumber, const CsvSplit& csvSplit)
     }
 }
 
-void Player::ExecuteFlushAllocation(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteFlushAllocation(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::FlushAllocation);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 3, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 3, false))
     {
         uint64_t origPtr = 0;
         uint64_t offset = 0;
         uint64_t size = 0;
 
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr) &&
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), offset) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 2), size))
         {
-            if(origPtr != 0)
+            if (origPtr != 0)
             {
                 const auto it = m_Allocations.find(origPtr);
-                if(it != m_Allocations.end())
+                if (it != m_Allocations.end())
                 {
-                    if(it->second.allocation)
+                    if (it->second.allocation)
                     {
                         vmaFlushAllocation(m_Allocator, it->second.allocation, offset, size);
                     }
                     else
                     {
-                        if(IssueWarning())
+                        if (IssueWarning())
                         {
                             printf("Line %zu: Cannot call vmaFlushAllocation - allocation is null.\n", lineNumber);
                         }
@@ -3487,7 +3493,7 @@ void Player::ExecuteFlushAllocation(size_t lineNumber, const CsvSplit& csvSplit)
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Allocation %llX not found.\n", lineNumber, origPtr);
                     }
@@ -3496,7 +3502,7 @@ void Player::ExecuteFlushAllocation(size_t lineNumber, const CsvSplit& csvSplit)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaFlushAllocation.\n", lineNumber);
             }
@@ -3504,32 +3510,32 @@ void Player::ExecuteFlushAllocation(size_t lineNumber, const CsvSplit& csvSplit)
     }
 }
 
-void Player::ExecuteInvalidateAllocation(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteInvalidateAllocation(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::InvalidateAllocation);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 3, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 3, false))
     {
         uint64_t origPtr = 0;
         uint64_t offset = 0;
         uint64_t size = 0;
 
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr) &&
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), offset) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 2), size))
         {
-            if(origPtr != 0)
+            if (origPtr != 0)
             {
                 const auto it = m_Allocations.find(origPtr);
-                if(it != m_Allocations.end())
+                if (it != m_Allocations.end())
                 {
-                    if(it->second.allocation)
+                    if (it->second.allocation)
                     {
                         vmaInvalidateAllocation(m_Allocator, it->second.allocation, offset, size);
                     }
                     else
                     {
-                        if(IssueWarning())
+                        if (IssueWarning())
                         {
                             printf("Line %zu: Cannot call vmaInvalidateAllocation - allocation is null.\n", lineNumber);
                         }
@@ -3537,7 +3543,7 @@ void Player::ExecuteInvalidateAllocation(size_t lineNumber, const CsvSplit& csvS
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Allocation %llX not found.\n", lineNumber, origPtr);
                     }
@@ -3546,7 +3552,7 @@ void Player::ExecuteInvalidateAllocation(size_t lineNumber, const CsvSplit& csvS
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaInvalidateAllocation.\n", lineNumber);
             }
@@ -3554,25 +3560,25 @@ void Player::ExecuteInvalidateAllocation(size_t lineNumber, const CsvSplit& csvS
     }
 }
 
-void Player::ExecuteTouchAllocation(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteTouchAllocation(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::TouchAllocation);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
     {
         uint64_t origPtr = 0;
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
         {
             const auto it = m_Allocations.find(origPtr);
-            if(it != m_Allocations.end())
+            if (it != m_Allocations.end())
             {
-                if(it->second.allocation)
+                if (it->second.allocation)
                 {
                     vmaTouchAllocation(m_Allocator, it->second.allocation);
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Cannot call vmaTouchAllocation - allocation is null.\n", lineNumber);
                     }
@@ -3580,7 +3586,7 @@ void Player::ExecuteTouchAllocation(size_t lineNumber, const CsvSplit& csvSplit)
             }
             else
             {
-                if(IssueWarning())
+                if (IssueWarning())
                 {
                     printf("Line %zu: Allocation %llX not found.\n", lineNumber, origPtr);
                 }
@@ -3588,7 +3594,7 @@ void Player::ExecuteTouchAllocation(size_t lineNumber, const CsvSplit& csvSplit)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaTouchAllocation.\n", lineNumber);
             }
@@ -3596,26 +3602,26 @@ void Player::ExecuteTouchAllocation(size_t lineNumber, const CsvSplit& csvSplit)
     }
 }
 
-void Player::ExecuteGetAllocationInfo(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteGetAllocationInfo(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::GetAllocationInfo);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
     {
         uint64_t origPtr = 0;
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
         {
             const auto it = m_Allocations.find(origPtr);
-            if(it != m_Allocations.end())
+            if (it != m_Allocations.end())
             {
-                if(it->second.allocation)
+                if (it->second.allocation)
                 {
                     VmaAllocationInfo allocInfo;
                     vmaGetAllocationInfo(m_Allocator, it->second.allocation, &allocInfo);
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Cannot call vmaGetAllocationInfo - allocation is null.\n", lineNumber);
                     }
@@ -3623,7 +3629,7 @@ void Player::ExecuteGetAllocationInfo(size_t lineNumber, const CsvSplit& csvSpli
             }
             else
             {
-                if(IssueWarning())
+                if (IssueWarning())
                 {
                     printf("Line %zu: Allocation %llX not found.\n", lineNumber, origPtr);
                 }
@@ -3631,7 +3637,7 @@ void Player::ExecuteGetAllocationInfo(size_t lineNumber, const CsvSplit& csvSpli
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaGetAllocationInfo.\n", lineNumber);
             }
@@ -3639,27 +3645,27 @@ void Player::ExecuteGetAllocationInfo(size_t lineNumber, const CsvSplit& csvSpli
     }
 }
 
-void Player::ExecuteMakePoolAllocationsLost(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteMakePoolAllocationsLost(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::MakePoolAllocationsLost);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
     {
         uint64_t origPtr = 0;
 
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
         {
-            if(origPtr != 0)
+            if (origPtr != 0)
             {
                 const auto it = m_Pools.find(origPtr);
-                if(it != m_Pools.end())
+                if (it != m_Pools.end())
                 {
                     vmaMakePoolAllocationsLost(m_Allocator, it->second.pool, nullptr);
                     UpdateMemStats();
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Pool %llX not found.\n", lineNumber, origPtr);
                     }
@@ -3668,7 +3674,7 @@ void Player::ExecuteMakePoolAllocationsLost(size_t lineNumber, const CsvSplit& c
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaMakePoolAllocationsLost.\n", lineNumber);
             }
@@ -3676,29 +3682,29 @@ void Player::ExecuteMakePoolAllocationsLost(size_t lineNumber, const CsvSplit& c
     }
 }
 
-void Player::ExecuteResizeAllocation(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteResizeAllocation(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::ResizeAllocation);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 2, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 2, false))
     {
         uint64_t origPtr = 0;
         uint64_t newSize = 0;
 
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr) &&
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), newSize))
         {
-            if(origPtr != 0)
+            if (origPtr != 0)
             {
                 const auto it = m_Allocations.find(origPtr);
-                if(it != m_Allocations.end())
+                if (it != m_Allocations.end())
                 {
                     vmaResizeAllocation(m_Allocator, it->second.allocation, newSize);
                     UpdateMemStats();
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Allocation %llX not found.\n", lineNumber, origPtr);
                     }
@@ -3707,7 +3713,7 @@ void Player::ExecuteResizeAllocation(size_t lineNumber, const CsvSplit& csvSplit
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaResizeAllocation.\n", lineNumber);
             }
@@ -3715,11 +3721,11 @@ void Player::ExecuteResizeAllocation(size_t lineNumber, const CsvSplit& csvSplit
     }
 }
 
-void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::DefragmentationBegin);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 9, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 9, false))
     {
         VmaDefragmentationInfo2 defragInfo = {};
         std::vector<uint64_t> allocationOrigPtrs;
@@ -3727,7 +3733,7 @@ void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvS
         uint64_t cmdBufOrigPtr = 0;
         uint64_t defragCtxOrigPtr = 0;
 
-        if(StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), defragInfo.flags) &&
+        if (StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX), defragInfo.flags) &&
             StrRangeToPtrList(csvSplit.GetRange(FIRST_PARAM_INDEX + 1), allocationOrigPtrs) &&
             StrRangeToPtrList(csvSplit.GetRange(FIRST_PARAM_INDEX + 2), poolOrigPtrs) &&
             StrRangeToUint(csvSplit.GetRange(FIRST_PARAM_INDEX + 3), defragInfo.maxCpuBytesToMove) &&
@@ -3740,15 +3746,15 @@ void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvS
             const size_t allocationOrigPtrCount = allocationOrigPtrs.size();
             std::vector<VmaAllocation> allocations;
             allocations.reserve(allocationOrigPtrCount);
-            for(size_t i = 0; i < allocationOrigPtrCount; ++i)
+            for (size_t i = 0; i < allocationOrigPtrCount; ++i)
             {
                 const auto it = m_Allocations.find(allocationOrigPtrs[i]);
-                if(it != m_Allocations.end() && it->second.allocation)
+                if (it != m_Allocations.end() && it->second.allocation)
                 {
                     allocations.push_back(it->second.allocation);
                 }
             }
-            if(!allocations.empty())
+            if (!allocations.empty())
             {
                 defragInfo.allocationCount = (uint32_t)allocations.size();
                 defragInfo.pAllocations = allocations.data();
@@ -3757,38 +3763,38 @@ void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvS
             const size_t poolOrigPtrCount = poolOrigPtrs.size();
             std::vector<VmaPool> pools;
             pools.reserve(poolOrigPtrCount);
-            for(size_t i = 0; i < poolOrigPtrCount; ++i)
+            for (size_t i = 0; i < poolOrigPtrCount; ++i)
             {
                 const auto it = m_Pools.find(poolOrigPtrs[i]);
-                if(it != m_Pools.end() && it->second.pool)
+                if (it != m_Pools.end() && it->second.pool)
                 {
                     pools.push_back(it->second.pool);
                 }
             }
-            if(!pools.empty())
+            if (!pools.empty())
             {
                 defragInfo.poolCount = (uint32_t)pools.size();
                 defragInfo.pPools = pools.data();
             }
 
-            if(allocations.size() != allocationOrigPtrCount ||
+            if (allocations.size() != allocationOrigPtrCount ||
                 pools.size() != poolOrigPtrCount)
             {
-                if(IssueWarning())
+                if (IssueWarning())
                 {
                     printf("Line %zu: Passing %zu allocations and %zu pools to vmaDefragmentationBegin, while originally %zu allocations and %zu pools were passed.\n",
-                        lineNumber,
-                        allocations.size(), pools.size(),
-                        allocationOrigPtrCount, poolOrigPtrCount);
+                           lineNumber,
+                           allocations.size(), pools.size(),
+                           allocationOrigPtrCount, poolOrigPtrCount);
                 }
             }
 
-            if(cmdBufOrigPtr)
+            if (cmdBufOrigPtr)
             {
-                VkCommandBufferBeginInfo cmdBufBeginInfo = { VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
+                VkCommandBufferBeginInfo cmdBufBeginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
                 cmdBufBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
                 VkResult res = vkBeginCommandBuffer(m_CommandBuffer, &cmdBufBeginInfo);
-                if(res == VK_SUCCESS)
+                if (res == VK_SUCCESS)
                 {
                     defragInfo.commandBuffer = m_CommandBuffer;
                 }
@@ -3803,22 +3809,22 @@ void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvS
             VmaDefragmentationContext defragCtx = nullptr;
             VkResult res = vmaDefragmentationBegin(m_Allocator, &defragInfo, nullptr, &defragCtx);
 
-            if(defragInfo.commandBuffer)
+            if (defragInfo.commandBuffer)
             {
                 vkEndCommandBuffer(m_CommandBuffer);
 
-                VkSubmitInfo submitInfo = { VK_STRUCTURE_TYPE_SUBMIT_INFO };
+                VkSubmitInfo submitInfo = {VK_STRUCTURE_TYPE_SUBMIT_INFO};
                 submitInfo.commandBufferCount = 1;
                 submitInfo.pCommandBuffers = &m_CommandBuffer;
                 vkQueueSubmit(m_TransferQueue, 1, &submitInfo, VK_NULL_HANDLE);
                 vkQueueWaitIdle(m_TransferQueue);
             }
 
-            if(res >= VK_SUCCESS)
+            if (res >= VK_SUCCESS)
             {
-                if(defragCtx)
+                if (defragCtx)
                 {
-                    if(defragCtxOrigPtr)
+                    if (defragCtxOrigPtr)
                     {
                         // We have defragmentation context, originally had defragmentation context: Store it.
                         m_DefragmentationContexts[defragCtxOrigPtr] = defragCtx;
@@ -3831,7 +3837,7 @@ void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvS
                 }
                 else
                 {
-                    if(defragCtxOrigPtr)
+                    if (defragCtxOrigPtr)
                     {
                         // We have no defragmentation context, originally there was one: Store null.
                         m_DefragmentationContexts[defragCtxOrigPtr] = nullptr;
@@ -3844,10 +3850,10 @@ void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvS
             }
             else
             {
-                if(defragCtxOrigPtr)
+                if (defragCtxOrigPtr)
                 {
                     // Currently failed, originally succeeded.
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: vmaDefragmentationBegin failed (%d), while originally succeeded.\n", lineNumber, res);
                     }
@@ -3855,7 +3861,7 @@ void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvS
                 else
                 {
                     // Currently failed, originally don't know.
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: vmaDefragmentationBegin failed (%d).\n", lineNumber, res);
                     }
@@ -3864,7 +3870,7 @@ void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvS
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaDefragmentationBegin.\n", lineNumber);
             }
@@ -3872,27 +3878,27 @@ void Player::ExecuteDefragmentationBegin(size_t lineNumber, const CsvSplit& csvS
     }
 }
 
-void Player::ExecuteDefragmentationEnd(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteDefragmentationEnd(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::DefragmentationEnd);
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 1, false))
     {
         uint64_t origPtr = 0;
 
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
         {
-            if(origPtr != 0)
+            if (origPtr != 0)
             {
                 const auto it = m_DefragmentationContexts.find(origPtr);
-                if(it != m_DefragmentationContexts.end())
+                if (it != m_DefragmentationContexts.end())
                 {
                     vmaDefragmentationEnd(m_Allocator, it->second);
                     m_DefragmentationContexts.erase(it);
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Defragmentation context %llX not found.\n", lineNumber, origPtr);
                     }
@@ -3901,7 +3907,7 @@ void Player::ExecuteDefragmentationEnd(size_t lineNumber, const CsvSplit& csvSpl
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaDefragmentationEnd.\n", lineNumber);
             }
@@ -3909,24 +3915,24 @@ void Player::ExecuteDefragmentationEnd(size_t lineNumber, const CsvSplit& csvSpl
     }
 }
 
-void Player::ExecuteSetPoolName(size_t lineNumber, const CsvSplit& csvSplit)
+void Player::ExecuteSetPoolName(size_t lineNumber, const CsvSplit &csvSplit)
 {
     m_Stats.RegisterFunctionCall(VMA_FUNCTION::SetPoolName);
 
-    if(!g_UserDataEnabled)
+    if (!g_UserDataEnabled)
     {
         return;
     }
 
-    if(ValidateFunctionParameterCount(lineNumber, csvSplit, 2, true))
+    if (ValidateFunctionParameterCount(lineNumber, csvSplit, 2, true))
     {
         uint64_t origPtr = 0;
-        if(StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
+        if (StrRangeToPtr(csvSplit.GetRange(FIRST_PARAM_INDEX), origPtr))
         {
-            if(origPtr != 0)
+            if (origPtr != 0)
             {
                 const auto it = m_Pools.find(origPtr);
-                if(it != m_Pools.end())
+                if (it != m_Pools.end())
                 {
                     std::string poolName;
                     csvSplit.GetRange(FIRST_PARAM_INDEX + 1).to_str(poolName);
@@ -3934,7 +3940,7 @@ void Player::ExecuteSetPoolName(size_t lineNumber, const CsvSplit& csvSplit)
                 }
                 else
                 {
-                    if(IssueWarning())
+                    if (IssueWarning())
                     {
                         printf("Line %zu: Pool %llX not found.\n", lineNumber, origPtr);
                     }
@@ -3943,7 +3949,7 @@ void Player::ExecuteSetPoolName(size_t lineNumber, const CsvSplit& csvSplit)
         }
         else
         {
-            if(IssueWarning())
+            if (IssueWarning())
             {
                 printf("Line %zu: Invalid parameters for vmaSetPoolName.\n", lineNumber);
             }
@@ -3983,11 +3989,10 @@ static void PrintCommandLineSyntax()
         "    --VK_LAYER_LUNARG_standard_validation <Value> - 0 to disable or 1 to enable validation layers.\n"
         "        By default the layers are silently enabled if available.\n"
         "    --VK_EXT_memory_budget <Value> - 0 to disable or 1 to enable this extension.\n"
-        "        By default the extension is silently enabled if available.\n"
-    );
+        "        By default the extension is silently enabled if available.\n");
 }
 
-static int ProcessFile(size_t iterationIndex, const char* data, size_t numBytes, duration& outDuration)
+static int ProcessFile(size_t iterationIndex, const char *data, size_t numBytes, duration &outDuration)
 {
     outDuration = duration::max();
 
@@ -3998,32 +4003,32 @@ static int ProcessFile(size_t iterationIndex, const char* data, size_t numBytes,
     LineSplit lineSplit(data, numBytes);
     StrRange line;
 
-    if(!lineSplit.GetNextLine(line) ||
+    if (!lineSplit.GetNextLine(line) ||
         !StrRangeEq(line, "Vulkan Memory Allocator,Calls recording"))
     {
         printf("ERROR: Incorrect file format.\n");
         return RESULT_ERROR_FORMAT;
     }
 
-    if(!lineSplit.GetNextLine(line) || !ParseFileVersion(line) || !ValidateFileVersion())
+    if (!lineSplit.GetNextLine(line) || !ParseFileVersion(line) || !ValidateFileVersion())
     {
         printf("ERROR: Incorrect file format version.\n");
         return RESULT_ERROR_FORMAT;
     }
 
-    if(g_Verbosity == VERBOSITY::MAXIMUM)
+    if (g_Verbosity == VERBOSITY::MAXIMUM)
     {
         printf("Format version: %u,%u\n",
-            GetVersionMajor(g_FileVersion),
-            GetVersionMinor(g_FileVersion));
+               GetVersionMajor(g_FileVersion),
+               GetVersionMinor(g_FileVersion));
     }
 
     // Parse configuration
     const bool configEnabled = g_FileVersion >= MakeVersion(1, 3);
     ConfigurationParser configParser;
-    if(configEnabled)
+    if (configEnabled)
     {
-        if(!configParser.Parse(lineSplit))
+        if (!configParser.Parse(lineSplit))
         {
             return RESULT_ERROR_FORMAT;
         }
@@ -4032,17 +4037,17 @@ static int ProcessFile(size_t iterationIndex, const char* data, size_t numBytes,
     Player player;
     int result = player.Init();
 
-    if(configEnabled)
+    if (configEnabled)
     {
         player.ApplyConfig(configParser);
     }
 
     size_t executedLineCount = 0;
-    if(result == 0)
+    if (result == 0)
     {
-        if(g_Verbosity > VERBOSITY::MINIMUM)
+        if (g_Verbosity > VERBOSITY::MINIMUM)
         {
-            if(useLineRanges)
+            if (useLineRanges)
             {
                 printf("Playing #%zu (limited range of lines)...\n", iterationIndex + 1);
             }
@@ -4054,58 +4059,58 @@ static int ProcessFile(size_t iterationIndex, const char* data, size_t numBytes,
 
         const time_point timeBeg = std::chrono::high_resolution_clock::now();
 
-        while(lineSplit.GetNextLine(line))
+        while (lineSplit.GetNextLine(line))
         {
             const size_t currLineNumber = lineSplit.GetNextLineIndex();
 
             bool execute = true;
-            if(useLineRanges)
+            if (useLineRanges)
             {
                 execute = g_LineRanges.Includes(currLineNumber);
             }
 
-            if(execute)
+            if (execute)
             {
                 player.ExecuteLine(currLineNumber, line);
                 ++executedLineCount;
             }
 
-            while(useDumpStatsAfterLine &&
-                g_DumpStatsAfterLineNextIndex < g_DumpStatsAfterLine.size() &&
-                currLineNumber >= g_DumpStatsAfterLine[g_DumpStatsAfterLineNextIndex].line)
+            while (useDumpStatsAfterLine &&
+                   g_DumpStatsAfterLineNextIndex < g_DumpStatsAfterLine.size() &&
+                   currLineNumber >= g_DumpStatsAfterLine[g_DumpStatsAfterLineNextIndex].line)
             {
                 const size_t requestedLine = g_DumpStatsAfterLine[g_DumpStatsAfterLineNextIndex].line;
                 const bool detailed = g_DumpStatsAfterLine[g_DumpStatsAfterLineNextIndex].detailed;
-                
-                if(g_Verbosity == VERBOSITY::MAXIMUM)
+
+                if (g_Verbosity == VERBOSITY::MAXIMUM)
                 {
                     printf("Dumping %sstats after line %zu actual line %zu...\n",
-                        detailed ? "detailed " : "",
-                        requestedLine,
-                        currLineNumber);
+                           detailed ? "detailed " : "",
+                           requestedLine,
+                           currLineNumber);
                 }
 
                 player.DumpStats("VmaReplay_Line%04zu.json", requestedLine, detailed);
-                
+
                 ++g_DumpStatsAfterLineNextIndex;
             }
 
-            while(useDefragmentAfterLine &&
-                g_DefragmentAfterLineNextIndex < g_DefragmentAfterLine.size() &&
-                currLineNumber >= g_DefragmentAfterLine[g_DefragmentAfterLineNextIndex])
+            while (useDefragmentAfterLine &&
+                   g_DefragmentAfterLineNextIndex < g_DefragmentAfterLine.size() &&
+                   currLineNumber >= g_DefragmentAfterLine[g_DefragmentAfterLineNextIndex])
             {
                 const size_t requestedLine = g_DefragmentAfterLine[g_DefragmentAfterLineNextIndex];
-                if(g_Verbosity >= VERBOSITY::DEFAULT)
+                if (g_Verbosity >= VERBOSITY::DEFAULT)
                 {
                     printf("Defragmenting after line %zu actual line %zu...\n",
-                        requestedLine,
-                        currLineNumber);
+                           requestedLine,
+                           currLineNumber);
                 }
 
                 player.DumpStats("VmaReplay_Line%04zu_Defragment_1Before.json", requestedLine, true);
                 player.Defragment();
                 player.DumpStats("VmaReplay_Line%04zu_Defragment_2After.json", requestedLine, true);
-                
+
                 ++g_DefragmentAfterLineNextIndex;
             }
         }
@@ -4114,7 +4119,7 @@ static int ProcessFile(size_t iterationIndex, const char* data, size_t numBytes,
         outDuration = playDuration;
 
         // End stats.
-        if(g_Verbosity > VERBOSITY::MINIMUM)
+        if (g_Verbosity > VERBOSITY::MINIMUM)
         {
             std::string playDurationStr;
             SecondsToFriendlyStr(ToFloatSeconds(playDuration), playDurationStr);
@@ -4122,7 +4127,7 @@ static int ProcessFile(size_t iterationIndex, const char* data, size_t numBytes,
             printf("Done.\n");
             printf("Playback took: %s\n", playDurationStr.c_str());
         }
-        if(g_Verbosity == VERBOSITY::MAXIMUM)
+        if (g_Verbosity == VERBOSITY::MAXIMUM)
         {
             printf("File lines: %zu\n", lineSplit.GetNextLineIndex());
             printf("Executed %zu file lines\n", executedLineCount);
@@ -4136,40 +4141,40 @@ static int ProcessFile(size_t iterationIndex, const char* data, size_t numBytes,
 
 static int ProcessFile()
 {
-    if(g_Verbosity > VERBOSITY::MINIMUM)
+    if (g_Verbosity > VERBOSITY::MINIMUM)
     {
         printf("Loading file \"%s\"...\n", g_FilePath.c_str());
     }
     int result = 0;
 
-    FILE* file = nullptr;
+    FILE *file = nullptr;
     const errno_t err = fopen_s(&file, g_FilePath.c_str(), "rb");
-    if(err == 0)
+    if (err == 0)
     {
         _fseeki64(file, 0, SEEK_END);
         const size_t fileSize = (size_t)_ftelli64(file);
         _fseeki64(file, 0, SEEK_SET);
 
-        if(fileSize > 0)
+        if (fileSize > 0)
         {
             std::vector<char> fileContents(fileSize);
             fread(fileContents.data(), 1, fileSize, file);
 
             // Begin stats.
-            if(g_Verbosity == VERBOSITY::MAXIMUM)
+            if (g_Verbosity == VERBOSITY::MAXIMUM)
             {
                 printf("File size: %zu B\n", fileSize);
             }
 
             duration durationSum = duration::zero();
-            for(size_t i = 0; i < g_IterationCount; ++i)
+            for (size_t i = 0; i < g_IterationCount; ++i)
             {
                 duration currDuration;
                 ProcessFile(i, fileContents.data(), fileContents.size(), currDuration);
                 durationSum += currDuration;
             }
 
-            if(g_IterationCount > 1)
+            if (g_IterationCount > 1)
             {
                 std::string playDurationStr;
                 SecondsToFriendlyStr(ToFloatSeconds(durationSum / g_IterationCount), playDurationStr);
@@ -4193,7 +4198,7 @@ static int ProcessFile()
     return result;
 }
 
-static int main2(int argc, char** argv)
+static int main2(int argc, char **argv)
 {
     CmdLineParser cmdLineParser(argc, argv);
 
@@ -4211,90 +4216,86 @@ static int main2(int argc, char** argv)
     cmdLineParser.RegisterOpt(CMD_LINE_OPT_DUMP_DETAILED_STATS_AFTER_LINE, "DumpDetailedStatsAfterLine", true);
 
     CmdLineParser::RESULT res;
-    while((res = cmdLineParser.ReadNext()) != CmdLineParser::RESULT_END)
+    while ((res = cmdLineParser.ReadNext()) != CmdLineParser::RESULT_END)
     {
-        switch(res)
+        switch (res)
         {
         case CmdLineParser::RESULT_OPT:
-            switch(cmdLineParser.GetOptId())
+            switch (cmdLineParser.GetOptId())
             {
             case CMD_LINE_OPT_VERBOSITY:
+            {
+                uint32_t verbosityVal = UINT32_MAX;
+                if (StrRangeToUint(StrRange(cmdLineParser.GetParameter()), verbosityVal) &&
+                    verbosityVal < (uint32_t)VERBOSITY::COUNT)
                 {
-                    uint32_t verbosityVal = UINT32_MAX;
-                    if(StrRangeToUint(StrRange(cmdLineParser.GetParameter()), verbosityVal) &&
-                        verbosityVal < (uint32_t)VERBOSITY::COUNT)
-                    {
-                        g_Verbosity = (VERBOSITY)verbosityVal;
-                    }
-                    else
-                    {
-                        PrintCommandLineSyntax();
-                        return RESULT_ERROR_COMMAND_LINE;
-                    }
+                    g_Verbosity = (VERBOSITY)verbosityVal;
                 }
-                break;
+                else
+                {
+                    PrintCommandLineSyntax();
+                    return RESULT_ERROR_COMMAND_LINE;
+                }
+            }
+            break;
             case CMD_LINE_OPT_ITERATIONS:
-                if(!StrRangeToUint(StrRange(cmdLineParser.GetParameter()), g_IterationCount))
+                if (!StrRangeToUint(StrRange(cmdLineParser.GetParameter()), g_IterationCount))
                 {
                     PrintCommandLineSyntax();
                     return RESULT_ERROR_COMMAND_LINE;
                 }
                 break;
             case CMD_LINE_OPT_LINES:
-                if(!g_LineRanges.Parse(StrRange(cmdLineParser.GetParameter())))
+                if (!g_LineRanges.Parse(StrRange(cmdLineParser.GetParameter())))
                 {
                     PrintCommandLineSyntax();
                     return RESULT_ERROR_COMMAND_LINE;
                 }
                 break;
             case CMD_LINE_OPT_PHYSICAL_DEVICE:
-                if(!StrRangeToUint(StrRange(cmdLineParser.GetParameter()), g_PhysicalDeviceIndex))
+                if (!StrRangeToUint(StrRange(cmdLineParser.GetParameter()), g_PhysicalDeviceIndex))
                 {
                     PrintCommandLineSyntax();
                     return RESULT_ERROR_COMMAND_LINE;
                 }
                 break;
             case CMD_LINE_OPT_USER_DATA:
-                if(!StrRangeToBool(StrRange(cmdLineParser.GetParameter()), g_UserDataEnabled))
+                if (!StrRangeToBool(StrRange(cmdLineParser.GetParameter()), g_UserDataEnabled))
                 {
                     PrintCommandLineSyntax();
                     return RESULT_ERROR_COMMAND_LINE;
                 }
                 break;
             case CMD_LINE_OPT_VK_EXT_MEMORY_BUDGET:
+            {
+                bool newValue;
+                if (StrRangeToBool(StrRange(cmdLineParser.GetParameter()), newValue))
                 {
-                    bool newValue;
-                    if(StrRangeToBool(StrRange(cmdLineParser.GetParameter()), newValue))
-                    {
-                        g_VK_EXT_memory_budget_request = newValue ?
-                            VULKAN_EXTENSION_REQUEST::ENABLED :
-                            VULKAN_EXTENSION_REQUEST::DISABLED;
-                    }
-                    else
-                    {
-                        PrintCommandLineSyntax();
-                        return RESULT_ERROR_COMMAND_LINE;
-                    }
+                    g_VK_EXT_memory_budget_request = newValue ? VULKAN_EXTENSION_REQUEST::ENABLED : VULKAN_EXTENSION_REQUEST::DISABLED;
                 }
-                break;
+                else
+                {
+                    PrintCommandLineSyntax();
+                    return RESULT_ERROR_COMMAND_LINE;
+                }
+            }
+            break;
             case CMD_LINE_OPT_VK_LAYER_LUNARG_STANDARD_VALIDATION:
+            {
+                bool newValue;
+                if (StrRangeToBool(StrRange(cmdLineParser.GetParameter()), newValue))
                 {
-                    bool newValue;
-                    if(StrRangeToBool(StrRange(cmdLineParser.GetParameter()), newValue))
-                    {
-                        g_VK_LAYER_LUNARG_standard_validation = newValue ?
-                            VULKAN_EXTENSION_REQUEST::ENABLED :
-                            VULKAN_EXTENSION_REQUEST::DISABLED;
-                    }
-                    else
-                    {
-                        PrintCommandLineSyntax();
-                        return RESULT_ERROR_COMMAND_LINE;
-                    }
+                    g_VK_LAYER_LUNARG_standard_validation = newValue ? VULKAN_EXTENSION_REQUEST::ENABLED : VULKAN_EXTENSION_REQUEST::DISABLED;
                 }
-                break;
+                else
+                {
+                    PrintCommandLineSyntax();
+                    return RESULT_ERROR_COMMAND_LINE;
+                }
+            }
+            break;
             case CMD_LINE_OPT_MEM_STATS:
-                if(!StrRangeToBool(StrRange(cmdLineParser.GetParameter()), g_MemStatsEnabled))
+                if (!StrRangeToBool(StrRange(cmdLineParser.GetParameter()), g_MemStatsEnabled))
                 {
                     PrintCommandLineSyntax();
                     return RESULT_ERROR_COMMAND_LINE;
@@ -4302,50 +4303,50 @@ static int main2(int argc, char** argv)
                 break;
             case CMD_LINE_OPT_DUMP_STATS_AFTER_LINE:
             case CMD_LINE_OPT_DUMP_DETAILED_STATS_AFTER_LINE:
+            {
+                size_t line;
+                if (StrRangeToUint(StrRange(cmdLineParser.GetParameter()), line))
                 {
-                    size_t line;
-                    if(StrRangeToUint(StrRange(cmdLineParser.GetParameter()), line))
-                    {
-                        const bool detailed =
-                            cmdLineParser.GetOptId() == CMD_LINE_OPT_DUMP_DETAILED_STATS_AFTER_LINE;
-                        g_DumpStatsAfterLine.push_back({line, detailed});
-                    }
-                    else
-                    {
-                        PrintCommandLineSyntax();
-                        return RESULT_ERROR_COMMAND_LINE;
-                    }
+                    const bool detailed =
+                        cmdLineParser.GetOptId() == CMD_LINE_OPT_DUMP_DETAILED_STATS_AFTER_LINE;
+                    g_DumpStatsAfterLine.push_back({line, detailed});
                 }
-                break;
+                else
+                {
+                    PrintCommandLineSyntax();
+                    return RESULT_ERROR_COMMAND_LINE;
+                }
+            }
+            break;
             case CMD_LINE_OPT_DEFRAGMENT_AFTER_LINE:
+            {
+                size_t line;
+                if (StrRangeToUint(StrRange(cmdLineParser.GetParameter()), line))
                 {
-                    size_t line;
-                    if(StrRangeToUint(StrRange(cmdLineParser.GetParameter()), line))
-                    {
-                        g_DefragmentAfterLine.push_back(line);
-                    }
-                    else
-                    {
-                        PrintCommandLineSyntax();
-                        return RESULT_ERROR_COMMAND_LINE;
-                    }
+                    g_DefragmentAfterLine.push_back(line);
                 }
-                break;
+                else
+                {
+                    PrintCommandLineSyntax();
+                    return RESULT_ERROR_COMMAND_LINE;
+                }
+            }
+            break;
             case CMD_LINE_OPT_DEFRAGMENTATION_FLAGS:
+            {
+                if (!StrRangeToUint(StrRange(cmdLineParser.GetParameter()), g_DefragmentationFlags))
                 {
-                    if(!StrRangeToUint(StrRange(cmdLineParser.GetParameter()), g_DefragmentationFlags))
-                    {
-                        PrintCommandLineSyntax();
-                        return RESULT_ERROR_COMMAND_LINE;
-                    }
+                    PrintCommandLineSyntax();
+                    return RESULT_ERROR_COMMAND_LINE;
                 }
-                break;
+            }
+            break;
             default:
                 assert(0);
             }
             break;
         case CmdLineParser::RESULT_PARAMETER:
-            if(g_FilePath.empty())
+            if (g_FilePath.empty())
             {
                 g_FilePath = cmdLineParser.GetParameter();
             }
@@ -4366,7 +4367,7 @@ static int main2(int argc, char** argv)
 
     // Postprocess command line parameters.
 
-    if(g_FilePath.empty())
+    if (g_FilePath.empty())
     {
         PrintCommandLineSyntax();
         return RESULT_ERROR_COMMAND_LINE;
@@ -4387,18 +4388,18 @@ static int main2(int argc, char** argv)
     return ProcessFile();
 }
 
-int main(int argc, char** argv)
+int main(int argc, char **argv)
 {
     try
     {
         return main2(argc, argv);
     }
-    catch(const std::exception& e)
+    catch (const std::exception &e)
     {
         printf("ERROR: %s\n", e.what());
         return RESULT_EXCEPTION;
     }
-    catch(...)
+    catch (...)
     {
         printf("UNKNOWN ERROR\n");
         return RESULT_EXCEPTION;

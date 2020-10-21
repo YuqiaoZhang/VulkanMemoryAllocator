@@ -50,17 +50,17 @@ inline float ToFloatSeconds(duration d)
     return std::chrono::duration_cast<std::chrono::duration<float>>(d).count();
 }
 
-void SecondsToFriendlyStr(float seconds, std::string& out);
+void SecondsToFriendlyStr(float seconds, std::string &out);
 
 template <typename T>
 T ceil_div(T x, T y)
 {
-    return (x+y-1) / y;
+    return (x + y - 1) / y;
 }
 template <typename T>
 inline T round_div(T x, T y)
 {
-    return (x+y/(T)2) / y;
+    return (x + y / (T)2) / y;
 }
 
 template <typename T>
@@ -71,58 +71,58 @@ inline T align_up(T val, T align)
 
 struct StrRange
 {
-    const char* beg;
-    const char* end;
+    const char *beg;
+    const char *end;
 
-    StrRange() { }
-    StrRange(const char* beg, const char* end) : beg(beg), end(end) { }
-    explicit StrRange(const char* sz) : beg(sz), end(sz + strlen(sz)) { }
-    explicit StrRange(const std::string& s) : beg(s.data()), end(s.data() + s.length()) { }
+    StrRange() {}
+    StrRange(const char *beg, const char *end) : beg(beg), end(end) {}
+    explicit StrRange(const char *sz) : beg(sz), end(sz + strlen(sz)) {}
+    explicit StrRange(const std::string &s) : beg(s.data()), end(s.data() + s.length()) {}
 
     size_t length() const { return end - beg; }
-    void to_str(std::string& out) const { out.assign(beg, end); }
+    void to_str(std::string &out) const { out.assign(beg, end); }
 };
 
-inline bool StrRangeEq(const StrRange& lhs, const char* rhsSz)
+inline bool StrRangeEq(const StrRange &lhs, const char *rhsSz)
 {
     const size_t rhsLen = strlen(rhsSz);
     return rhsLen == lhs.length() &&
-        memcmp(lhs.beg, rhsSz, rhsLen) == 0;
+           memcmp(lhs.beg, rhsSz, rhsLen) == 0;
 }
 
-inline bool StrRangeToUint(const StrRange& s, uint32_t& out)
+inline bool StrRangeToUint(const StrRange &s, uint32_t &out)
 {
-    char* end = (char*)s.end;
+    char *end = (char *)s.end;
     out = (uint32_t)strtoul(s.beg, &end, 10);
     return end == s.end;
 }
-inline bool StrRangeToUint(const StrRange& s, uint64_t& out)
+inline bool StrRangeToUint(const StrRange &s, uint64_t &out)
 {
-    char* end = (char*)s.end;
+    char *end = (char *)s.end;
     out = (uint64_t)strtoull(s.beg, &end, 10);
     return end == s.end;
 }
-inline bool StrRangeToPtr(const StrRange& s, uint64_t& out)
+inline bool StrRangeToPtr(const StrRange &s, uint64_t &out)
 {
-    char* end = (char*)s.end;
+    char *end = (char *)s.end;
     out = (uint64_t)strtoull(s.beg, &end, 16);
     return end == s.end;
 }
-inline bool StrRangeToFloat(const StrRange& s, float& out)
+inline bool StrRangeToFloat(const StrRange &s, float &out)
 {
-    char* end = (char*)s.end;
+    char *end = (char *)s.end;
     out = strtof(s.beg, &end);
     return end == s.end;
 }
-inline bool StrRangeToBool(const StrRange& s, bool& out)
+inline bool StrRangeToBool(const StrRange &s, bool &out)
 {
-    if(s.end - s.beg == 1)
+    if (s.end - s.beg == 1)
     {
-        if(*s.beg == '1')
+        if (*s.beg == '1')
         {
             out = true;
         }
-        else if(*s.beg == '0')
+        else if (*s.beg == '0')
         {
             out = false;
         }
@@ -138,24 +138,23 @@ inline bool StrRangeToBool(const StrRange& s, bool& out)
 
     return true;
 }
-bool StrRangeToPtrList(const StrRange& s, std::vector<uint64_t>& out);
+bool StrRangeToPtrList(const StrRange &s, std::vector<uint64_t> &out);
 
 class LineSplit
 {
 public:
-    LineSplit(const char* data, size_t numBytes) :
-        m_Data(data),
-        m_NumBytes(numBytes),
-        m_NextLineBeg(0),
-        m_NextLineIndex(0)
+    LineSplit(const char *data, size_t numBytes) : m_Data(data),
+                                                   m_NumBytes(numBytes),
+                                                   m_NextLineBeg(0),
+                                                   m_NextLineIndex(0)
     {
     }
 
-    bool GetNextLine(StrRange& out);
+    bool GetNextLine(StrRange &out);
     size_t GetNextLineIndex() const { return m_NextLineIndex; }
 
 private:
-    const char* const m_Data;
+    const char *const m_Data;
     const size_t m_NumBytes;
     size_t m_NextLineBeg;
     size_t m_NextLineIndex;
@@ -166,18 +165,18 @@ class CsvSplit
 public:
     static const size_t RANGE_COUNT_MAX = 32;
 
-    void Set(const StrRange& line, size_t maxCount = RANGE_COUNT_MAX);
+    void Set(const StrRange &line, size_t maxCount = RANGE_COUNT_MAX);
 
-    const StrRange& GetLine() const { return m_Line; }
+    const StrRange &GetLine() const { return m_Line; }
 
     size_t GetCount() const { return m_Count; }
-    StrRange GetRange(size_t index) const 
+    StrRange GetRange(size_t index) const
     {
-        if(index < m_Count)
+        if (index < m_Count)
         {
-            return StrRange {
+            return StrRange{
                 m_Line.beg + m_Ranges[index * 2],
-                m_Line.beg + m_Ranges[index * 2 + 1] };
+                m_Line.beg + m_Ranges[index * 2 + 1]};
         }
         else
         {
@@ -186,7 +185,7 @@ public:
     }
 
 private:
-    StrRange m_Line = { nullptr, nullptr };
+    StrRange m_Line = {nullptr, nullptr};
     size_t m_Count = 0;
     size_t m_Ranges[RANGE_COUNT_MAX * 2]; // Pairs of begin-end.
 };
@@ -194,62 +193,62 @@ private:
 class CmdLineParser
 {
 public:
-	enum RESULT
-	{
-		RESULT_OPT,
-		RESULT_PARAMETER,
-		RESULT_END,
-		RESULT_ERROR,
-	};
+    enum RESULT
+    {
+        RESULT_OPT,
+        RESULT_PARAMETER,
+        RESULT_END,
+        RESULT_ERROR,
+    };
 
-	CmdLineParser(int argc, char **argv);
-	CmdLineParser(const char *CmdLine);
-	
+    CmdLineParser(int argc, char **argv);
+    CmdLineParser(const char *CmdLine);
+
     void RegisterOpt(uint32_t Id, char Opt, bool Parameter);
-	void RegisterOpt(uint32_t Id, const std::string &Opt, bool Parameter);
-	
+    void RegisterOpt(uint32_t Id, const std::string &Opt, bool Parameter);
+
     RESULT ReadNext();
-	uint32_t GetOptId();
-	const std::string & GetParameter();
+    uint32_t GetOptId();
+    const std::string &GetParameter();
 
 private:
-	struct SHORT_OPT
-	{
-		uint32_t Id;
-		char Opt;
-		bool Parameter;
+    struct SHORT_OPT
+    {
+        uint32_t Id;
+        char Opt;
+        bool Parameter;
 
-		SHORT_OPT(uint32_t Id, char Opt, bool Parameter) : Id(Id), Opt(Opt), Parameter(Parameter) { }
-	};
+        SHORT_OPT(uint32_t Id, char Opt, bool Parameter) : Id(Id), Opt(Opt), Parameter(Parameter) {}
+    };
 
-	struct LONG_OPT
-	{
-		uint32_t Id;
-		std::string Opt;
-		bool Parameter;
+    struct LONG_OPT
+    {
+        uint32_t Id;
+        std::string Opt;
+        bool Parameter;
 
-		LONG_OPT(uint32_t Id, std::string Opt, bool Parameter) : Id(Id), Opt(Opt), Parameter(Parameter) { }
-	};
+        LONG_OPT(uint32_t Id, std::string Opt, bool Parameter) : Id(Id), Opt(Opt), Parameter(Parameter) {}
+    };
 
-	char **m_argv;
-	const char *m_CmdLine;
-	int m_argc;
-	size_t m_CmdLineLength;
-	size_t m_ArgIndex;
+    char **m_argv;
+    const char *m_CmdLine;
+    int m_argc;
+    size_t m_CmdLineLength;
+    size_t m_ArgIndex;
 
-	bool ReadNextArg(std::string *OutArg);
+    bool ReadNextArg(std::string *OutArg);
 
-	std::vector<SHORT_OPT> m_ShortOpts;
-	std::vector<LONG_OPT> m_LongOpts;
+    std::vector<SHORT_OPT> m_ShortOpts;
+    std::vector<LONG_OPT> m_LongOpts;
 
-	SHORT_OPT * FindShortOpt(char Opt);
-	LONG_OPT * FindLongOpt(const std::string &Opt);
+    SHORT_OPT *FindShortOpt(char Opt);
+    LONG_OPT *FindLongOpt(const std::string &Opt);
 
-	bool m_InsideMultioption;
-	std::string m_LastArg;
-	size_t m_LastArgIndex;
-	uint32_t m_LastOptId;
-	std::string m_LastParameter;
+    bool m_InsideMultioption;
+    std::string m_LastArg;
+    size_t m_LastArgIndex;
+    uint32_t m_LastOptId;
+    std::string m_LastParameter;
 };
 
 /*
@@ -269,52 +268,52 @@ Examples:
 TODO: Optimize it: Do sorting and merging while parsing. Do binary search while
 reading.
 */
-template<typename T>
+template <typename T>
 class RangeSequence
 {
 public:
     typedef std::pair<T, T> RangeType;
 
     void Clear() { m_Ranges.clear(); }
-    bool Parse(const StrRange& str);
+    bool Parse(const StrRange &str);
 
     bool IsEmpty() const { return m_Ranges.empty(); }
     size_t GetCount() const { return m_Ranges.size(); }
-    const RangeType* GetRanges() const { return m_Ranges.data(); }
+    const RangeType *GetRanges() const { return m_Ranges.data(); }
 
     bool Includes(T number) const;
-    
+
 private:
     std::vector<RangeType> m_Ranges;
 };
 
-template<typename T>
-bool RangeSequence<T>::Parse(const StrRange& str)
+template <typename T>
+bool RangeSequence<T>::Parse(const StrRange &str)
 {
     m_Ranges.clear();
 
-    StrRange currRange = { str.beg, str.beg };
-    while(currRange.beg < str.end)
+    StrRange currRange = {str.beg, str.beg};
+    while (currRange.beg < str.end)
     {
         currRange.end = currRange.beg + 1;
         // Find next ',' or the end.
-        while(currRange.end < str.end && *currRange.end != ',')
+        while (currRange.end < str.end && *currRange.end != ',')
         {
             ++currRange.end;
         }
 
         // Find '-' within this range.
-        const char* hyphenPos = currRange.beg;
-        while(hyphenPos < currRange.end && *hyphenPos != '-')
+        const char *hyphenPos = currRange.beg;
+        while (hyphenPos < currRange.end && *hyphenPos != '-')
         {
             ++hyphenPos;
         }
 
         // No hyphen - single number like '10'.
-        if(hyphenPos == currRange.end)
+        if (hyphenPos == currRange.end)
         {
             RangeType range;
-            if(!StrRangeToUint(currRange, range.first))
+            if (!StrRangeToUint(currRange, range.first))
             {
                 return false;
             }
@@ -322,11 +321,11 @@ bool RangeSequence<T>::Parse(const StrRange& str)
             m_Ranges.push_back(range);
         }
         // Hyphen at the end, like '10-'.
-        else if(hyphenPos + 1 == currRange.end)
+        else if (hyphenPos + 1 == currRange.end)
         {
-            const StrRange numberRange = { currRange.beg, hyphenPos };
+            const StrRange numberRange = {currRange.beg, hyphenPos};
             RangeType range;
-            if(!StrRangeToUint(numberRange, range.first))
+            if (!StrRangeToUint(numberRange, range.first))
             {
                 return false;
             }
@@ -334,12 +333,12 @@ bool RangeSequence<T>::Parse(const StrRange& str)
             m_Ranges.push_back(range);
         }
         // Hyphen at the beginning, like "-10".
-        else if(hyphenPos == currRange.beg)
+        else if (hyphenPos == currRange.beg)
         {
-            const StrRange numberRange = { currRange.beg + 1, currRange.end };
+            const StrRange numberRange = {currRange.beg + 1, currRange.end};
             RangeType range;
             range.first = std::numeric_limits<T>::min();
-            if(!StrRangeToUint(numberRange, range.second))
+            if (!StrRangeToUint(numberRange, range.second))
             {
                 return false;
             }
@@ -348,10 +347,10 @@ bool RangeSequence<T>::Parse(const StrRange& str)
         // Hyphen in the middle, like "1-10".
         else
         {
-            const StrRange numberRange1 = { currRange.beg, hyphenPos };
-            const StrRange numberRange2 = { hyphenPos + 1, currRange.end };
+            const StrRange numberRange1 = {currRange.beg, hyphenPos};
+            const StrRange numberRange2 = {hyphenPos + 1, currRange.end};
             RangeType range;
-            if(!StrRangeToUint(numberRange1, range.first) ||
+            if (!StrRangeToUint(numberRange1, range.first) ||
                 !StrRangeToUint(numberRange2, range.second) ||
                 range.second < range.first)
             {
@@ -367,12 +366,12 @@ bool RangeSequence<T>::Parse(const StrRange& str)
     return true;
 }
 
-template<typename T>
+template <typename T>
 bool RangeSequence<T>::Includes(T number) const
 {
-    for(const auto& it : m_Ranges)
+    for (const auto &it : m_Ranges)
     {
-        if(number >= it.first && number <= it.second)
+        if (number >= it.first && number <= it.second)
         {
             return true;
         }

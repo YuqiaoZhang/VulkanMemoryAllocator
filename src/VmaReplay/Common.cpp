@@ -22,75 +22,75 @@
 
 #include "Common.h"
 
-bool StrRangeToPtrList(const StrRange& s, std::vector<uint64_t>& out)
+bool StrRangeToPtrList(const StrRange &s, std::vector<uint64_t> &out)
 {
-    out.clear();
-    StrRange currRange = { s.beg, nullptr };
-    while(currRange.beg < s.end)
-    {
-        currRange.end = currRange.beg;
-        while(currRange.end < s.end && *currRange.end != ' ')
-        {
-            ++currRange.end;
-        }
+	out.clear();
+	StrRange currRange = {s.beg, nullptr};
+	while (currRange.beg < s.end)
+	{
+		currRange.end = currRange.beg;
+		while (currRange.end < s.end && *currRange.end != ' ')
+		{
+			++currRange.end;
+		}
 
-        uint64_t ptr = 0;
-        if(!StrRangeToPtr(currRange, ptr))
-        {
-            return false;
-        }
-        out.push_back(ptr);
+		uint64_t ptr = 0;
+		if (!StrRangeToPtr(currRange, ptr))
+		{
+			return false;
+		}
+		out.push_back(ptr);
 
-        currRange.beg = currRange.end + 1;
-    }
-    return true;
+		currRange.beg = currRange.end + 1;
+	}
+	return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // LineSplit class
 
-bool LineSplit::GetNextLine(StrRange& out)
+bool LineSplit::GetNextLine(StrRange &out)
 {
-    if(m_NextLineBeg < m_NumBytes)
-    {
-        out.beg = m_Data + m_NextLineBeg;
-        size_t currLineEnd = m_NextLineBeg;
-        while(currLineEnd < m_NumBytes && m_Data[currLineEnd] != '\n')
-            ++currLineEnd;
-        out.end = m_Data + currLineEnd;
-        // Ignore trailing '\r' to support Windows end of line.
-        if(out.end > out.beg && *(out.end - 1) == '\r')
-        {
-            --out.end;
-        }
-        m_NextLineBeg = currLineEnd + 1; // Past '\n'
-        ++m_NextLineIndex;
-        return true;
-    }
-    else
-        return false;
+	if (m_NextLineBeg < m_NumBytes)
+	{
+		out.beg = m_Data + m_NextLineBeg;
+		size_t currLineEnd = m_NextLineBeg;
+		while (currLineEnd < m_NumBytes && m_Data[currLineEnd] != '\n')
+			++currLineEnd;
+		out.end = m_Data + currLineEnd;
+		// Ignore trailing '\r' to support Windows end of line.
+		if (out.end > out.beg && *(out.end - 1) == '\r')
+		{
+			--out.end;
+		}
+		m_NextLineBeg = currLineEnd + 1; // Past '\n'
+		++m_NextLineIndex;
+		return true;
+	}
+	else
+		return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // CsvSplit class
 
-void CsvSplit::Set(const StrRange& line, size_t maxCount)
+void CsvSplit::Set(const StrRange &line, size_t maxCount)
 {
-    assert(maxCount <= RANGE_COUNT_MAX);
-    m_Line = line;
-    const size_t strLen = line.length();
-    size_t rangeIndex = 0;
-    size_t charIndex = 0;
-    while(charIndex < strLen && rangeIndex < maxCount)
-    {
-        m_Ranges[rangeIndex * 2] = charIndex;
-        while(charIndex < strLen && (rangeIndex + 1 == maxCount || m_Line.beg[charIndex] != ','))
-            ++charIndex;
-        m_Ranges[rangeIndex * 2 + 1] = charIndex;
-        ++rangeIndex;
-        ++charIndex; // Past ','
-    }
-    m_Count = rangeIndex;
+	assert(maxCount <= RANGE_COUNT_MAX);
+	m_Line = line;
+	const size_t strLen = line.length();
+	size_t rangeIndex = 0;
+	size_t charIndex = 0;
+	while (charIndex < strLen && rangeIndex < maxCount)
+	{
+		m_Ranges[rangeIndex * 2] = charIndex;
+		while (charIndex < strLen && (rangeIndex + 1 == maxCount || m_Line.beg[charIndex] != ','))
+			++charIndex;
+		m_Ranges[rangeIndex * 2 + 1] = charIndex;
+		++rangeIndex;
+		++charIndex; // Past ','
+	}
+	m_Count = rangeIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +100,8 @@ bool CmdLineParser::ReadNextArg(std::string *OutArg)
 {
 	if (m_argv != NULL)
 	{
-		if (m_ArgIndex >= (size_t)m_argc) return false;
+		if (m_ArgIndex >= (size_t)m_argc)
+			return false;
 
 		*OutArg = m_argv[m_ArgIndex];
 		m_ArgIndex++;
@@ -108,8 +109,9 @@ bool CmdLineParser::ReadNextArg(std::string *OutArg)
 	}
 	else
 	{
-		if (m_ArgIndex >= m_CmdLineLength) return false;
-		
+		if (m_ArgIndex >= m_CmdLineLength)
+			return false;
+
 		OutArg->clear();
 		bool InsideQuotes = false;
 		while (m_ArgIndex < m_CmdLineLength)
@@ -193,7 +195,7 @@ bool CmdLineParser::ReadNextArg(std::string *OutArg)
 	}
 }
 
-CmdLineParser::SHORT_OPT * CmdLineParser::FindShortOpt(char Opt)
+CmdLineParser::SHORT_OPT *CmdLineParser::FindShortOpt(char Opt)
 {
 	for (size_t i = 0; i < m_ShortOpts.size(); i++)
 		if (m_ShortOpts[i].Opt == Opt)
@@ -201,7 +203,7 @@ CmdLineParser::SHORT_OPT * CmdLineParser::FindShortOpt(char Opt)
 	return NULL;
 }
 
-CmdLineParser::LONG_OPT * CmdLineParser::FindLongOpt(const std::string &Opt)
+CmdLineParser::LONG_OPT *CmdLineParser::FindLongOpt(const std::string &Opt)
 {
 	for (size_t i = 0; i < m_LongOpts.size(); i++)
 		if (m_LongOpts[i].Opt == Opt)
@@ -209,28 +211,26 @@ CmdLineParser::LONG_OPT * CmdLineParser::FindLongOpt(const std::string &Opt)
 	return NULL;
 }
 
-CmdLineParser::CmdLineParser(int argc, char **argv) :
-	m_argv(argv),
-	m_CmdLine(NULL),
-	m_argc(argc),
-	m_CmdLineLength(0),
-	m_ArgIndex(1),
-	m_InsideMultioption(false),
-	m_LastArgIndex(0),
-	m_LastOptId(0)
+CmdLineParser::CmdLineParser(int argc, char **argv) : m_argv(argv),
+													  m_CmdLine(NULL),
+													  m_argc(argc),
+													  m_CmdLineLength(0),
+													  m_ArgIndex(1),
+													  m_InsideMultioption(false),
+													  m_LastArgIndex(0),
+													  m_LastOptId(0)
 {
 	assert(argc > 0);
 	assert(argv != NULL);
 }
 
-CmdLineParser::CmdLineParser(const char *CmdLine) :
-	m_argv(NULL),
-	m_CmdLine(CmdLine),
-	m_argc(0),
-	m_ArgIndex(0),
-	m_InsideMultioption(false),
-	m_LastArgIndex(0),
-	m_LastOptId(0)
+CmdLineParser::CmdLineParser(const char *CmdLine) : m_argv(NULL),
+													m_CmdLine(CmdLine),
+													m_argc(0),
+													m_ArgIndex(0),
+													m_InsideMultioption(false),
+													m_LastArgIndex(0),
+													m_LastOptId(0)
 {
 	assert(CmdLine != NULL);
 
@@ -250,7 +250,7 @@ void CmdLineParser::RegisterOpt(uint32_t Id, char Opt, bool Parameter)
 void CmdLineParser::RegisterOpt(uint32_t Id, const std::string &Opt, bool Parameter)
 {
 	assert(!Opt.empty());
-	
+
 	m_LongOpts.push_back(LONG_OPT(Id, Opt, Parameter));
 }
 
@@ -268,7 +268,7 @@ CmdLineParser::RESULT CmdLineParser::ReadNext()
 		}
 		if (so->Parameter)
 		{
-			if (m_LastArg.length() == m_LastArgIndex+1)
+			if (m_LastArg.length() == m_LastArgIndex + 1)
 			{
 				if (!ReadNextArg(&m_LastParameter))
 				{
@@ -280,24 +280,24 @@ CmdLineParser::RESULT CmdLineParser::ReadNext()
 				m_LastOptId = so->Id;
 				return CmdLineParser::RESULT_OPT;
 			}
-			else if (m_LastArg[m_LastArgIndex+1] == '=')
+			else if (m_LastArg[m_LastArgIndex + 1] == '=')
 			{
 				m_InsideMultioption = false;
-				m_LastParameter = m_LastArg.substr(m_LastArgIndex+2);
+				m_LastParameter = m_LastArg.substr(m_LastArgIndex + 2);
 				m_LastOptId = so->Id;
 				return CmdLineParser::RESULT_OPT;
 			}
 			else
 			{
 				m_InsideMultioption = false;
-				m_LastParameter = m_LastArg.substr(m_LastArgIndex+1);
+				m_LastParameter = m_LastArg.substr(m_LastArgIndex + 1);
 				m_LastOptId = so->Id;
 				return CmdLineParser::RESULT_OPT;
 			}
 		}
 		else
 		{
-			if (m_LastArg.length() == m_LastArgIndex+1)
+			if (m_LastArg.length() == m_LastArgIndex + 1)
 			{
 				m_InsideMultioption = false;
 				m_LastParameter.clear();
@@ -322,7 +322,7 @@ CmdLineParser::RESULT CmdLineParser::ReadNext()
 			m_LastOptId = 0;
 			return CmdLineParser::RESULT_END;
 		}
-		
+
 		if (!m_LastArg.empty() && m_LastArg[0] == '-')
 		{
 			if (m_LastArg.length() > 1 && m_LastArg[1] == '-')
@@ -330,14 +330,14 @@ CmdLineParser::RESULT CmdLineParser::ReadNext()
 				size_t EqualIndex = m_LastArg.find('=', 2);
 				if (EqualIndex != std::string::npos)
 				{
-					LONG_OPT *lo = FindLongOpt(m_LastArg.substr(2, EqualIndex-2));
+					LONG_OPT *lo = FindLongOpt(m_LastArg.substr(2, EqualIndex - 2));
 					if (lo == NULL || lo->Parameter == false)
 					{
 						m_LastOptId = 0;
 						m_LastParameter.clear();
 						return CmdLineParser::RESULT_ERROR;
 					}
-					m_LastParameter = m_LastArg.substr(EqualIndex+1);
+					m_LastParameter = m_LastArg.substr(EqualIndex + 1);
 					m_LastOptId = lo->Id;
 					return CmdLineParser::RESULT_OPT;
 				}
@@ -436,25 +436,25 @@ CmdLineParser::RESULT CmdLineParser::ReadNext()
 					SHORT_OPT *so = FindShortOpt(m_LastArg[1]);
 					if (so != NULL)
 					{
-						if (so->Parameter == false)	
+						if (so->Parameter == false)
 						{
 							m_LastOptId = 0;
 							m_LastParameter.clear();
 							return CmdLineParser::RESULT_ERROR;
 						}
-						m_LastParameter = m_LastArg.substr(EqualIndex+1);
+						m_LastParameter = m_LastArg.substr(EqualIndex + 1);
 						m_LastOptId = so->Id;
 						return CmdLineParser::RESULT_OPT;
 					}
 				}
-				LONG_OPT *lo = FindLongOpt(m_LastArg.substr(1, EqualIndex-1));
+				LONG_OPT *lo = FindLongOpt(m_LastArg.substr(1, EqualIndex - 1));
 				if (lo == NULL || lo->Parameter == false)
 				{
 					m_LastOptId = 0;
 					m_LastParameter.clear();
 					return CmdLineParser::RESULT_ERROR;
 				}
-				m_LastParameter = m_LastArg.substr(EqualIndex+1);
+				m_LastParameter = m_LastArg.substr(EqualIndex + 1);
 				m_LastOptId = lo->Id;
 				return CmdLineParser::RESULT_OPT;
 			}
@@ -516,7 +516,7 @@ uint32_t CmdLineParser::GetOptId()
 	return m_LastOptId;
 }
 
-const std::string & CmdLineParser::GetParameter()
+const std::string &CmdLineParser::GetParameter()
 {
 	return m_LastParameter;
 }
@@ -652,18 +652,18 @@ void PrintErrorF(const wchar_t* format, ...)
 }
 */
 
-void SecondsToFriendlyStr(float seconds, std::string& out)
+void SecondsToFriendlyStr(float seconds, std::string &out)
 {
-    if(seconds == 0.f)
-    {
-        out = "0";
-        return;
-    }
+	if (seconds == 0.f)
+	{
+		out = "0";
+		return;
+	}
 
-    if (seconds < 0.f)
+	if (seconds < 0.f)
 	{
 		out = "-";
-        seconds = -seconds;
+		seconds = -seconds;
 	}
 	else
 	{
@@ -672,50 +672,50 @@ void SecondsToFriendlyStr(float seconds, std::string& out)
 
 	char s[32];
 
-    // #.### ns
-    if(seconds < 1e-6)
-    {
-        sprintf_s(s, "%.3f ns", seconds * 1e9);
-        out += s;
-    }
-    // #.### us
-    else if(seconds < 1e-3)
-    {
-        sprintf_s(s, "%.3f us", seconds * 1e6);
-        out += s;
-    }
-    // #.### ms
-    else if(seconds < 1.f)
-    {
-        sprintf_s(s, "%.3f ms", seconds * 1e3);
-        out += s;
-    }
-    // #.### s
-    else if(seconds < 60.f)
-    {
-        sprintf_s(s, "%.3f s", seconds);
-        out += s;
-    }
-    else
-    {
-	    uint64_t seconds_u = (uint64_t)seconds;
-	    // "#:## min"
-	    if (seconds_u < 3600)
-	    {
-		    uint64_t minutes = seconds_u / 60;
-		    seconds_u -= minutes * 60;
-            sprintf_s(s, "%llu:%02llu min", minutes, seconds_u);
-            out += s;
-	    }
-	    // "#:##:## h"
-	    else
-	    {
-		    uint64_t minutes = seconds_u / 60;
-            seconds_u -= minutes * 60;
-		    uint64_t hours = minutes / 60;
-		    minutes -= hours * 60;
-            sprintf_s(s, "%llu:%02llu:%02llu h", hours, minutes, seconds_u);
-            out += s;
-	    }
-    }
+	// #.### ns
+	if (seconds < 1e-6)
+	{
+		sprintf_s(s, "%.3f ns", seconds * 1e9);
+		out += s;
+	}
+	// #.### us
+	else if (seconds < 1e-3)
+	{
+		sprintf_s(s, "%.3f us", seconds * 1e6);
+		out += s;
+	}
+	// #.### ms
+	else if (seconds < 1.f)
+	{
+		sprintf_s(s, "%.3f ms", seconds * 1e3);
+		out += s;
+	}
+	// #.### s
+	else if (seconds < 60.f)
+	{
+		sprintf_s(s, "%.3f s", seconds);
+		out += s;
+	}
+	else
+	{
+		uint64_t seconds_u = (uint64_t)seconds;
+		// "#:## min"
+		if (seconds_u < 3600)
+		{
+			uint64_t minutes = seconds_u / 60;
+			seconds_u -= minutes * 60;
+			sprintf_s(s, "%llu:%02llu min", minutes, seconds_u);
+			out += s;
+		}
+		// "#:##:## h"
+		else
+		{
+			uint64_t minutes = seconds_u / 60;
+			seconds_u -= minutes * 60;
+			uint64_t hours = minutes / 60;
+			minutes -= hours * 60;
+			sprintf_s(s, "%llu:%02llu:%02llu h", hours, minutes, seconds_u);
+			out += s;
+		}
+	}
 }

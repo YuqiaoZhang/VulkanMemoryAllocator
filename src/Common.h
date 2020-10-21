@@ -49,17 +49,23 @@ typedef std::chrono::high_resolution_clock::time_point time_point;
 typedef std::chrono::high_resolution_clock::duration duration;
 
 #ifdef _DEBUG
-    #define TEST(expr) do { \
-            if(!(expr)) { \
-                assert(0 && #expr); \
-            } \
-        } while(0)
+#define TEST(expr)              \
+    do                          \
+    {                           \
+        if (!(expr))            \
+        {                       \
+            assert(0 && #expr); \
+        }                       \
+    } while (0)
 #else
-    #define TEST(expr) do { \
-            if(!(expr)) { \
-                throw std::runtime_error("TEST FAILED: " #expr); \
-            } \
-        } while(0)
+#define TEST(expr)                                           \
+    do                                                       \
+    {                                                        \
+        if (!(expr))                                         \
+        {                                                    \
+            throw std::runtime_error("TEST FAILED: " #expr); \
+        }                                                    \
+    } while (0)
 #endif
 
 #define ERR_GUARD_VULKAN(expr) TEST((expr) >= 0)
@@ -78,12 +84,12 @@ inline float ToFloatSeconds(duration d)
 template <typename T>
 inline T ceil_div(T x, T y)
 {
-    return (x+y-1) / y;
+    return (x + y - 1) / y;
 }
 template <typename T>
 inline T round_div(T x, T y)
 {
-    return (x+y/(T)2) / y;
+    return (x + y / (T)2) / y;
 }
 
 template <typename T>
@@ -98,14 +104,14 @@ struct vec3
 {
     float x, y, z;
 
-    vec3() { }
-    vec3(float x, float y, float z) : x(x), y(y), z(z) { }
+    vec3() {}
+    vec3(float x, float y, float z) : x(x), y(y), z(z) {}
 
-    float& operator[](uint32_t index) { return *(&x + index); }
-    const float& operator[](uint32_t index) const { return *(&x + index); }
+    float &operator[](uint32_t index) { return *(&x + index); }
+    const float &operator[](uint32_t index) const { return *(&x + index); }
 
-    vec3 operator+(const vec3& rhs) const { return vec3(x + rhs.x, y + rhs.y, z + rhs.z); }
-    vec3 operator-(const vec3& rhs) const { return vec3(x - rhs.x, y - rhs.y, z - rhs.z); }
+    vec3 operator+(const vec3 &rhs) const { return vec3(x + rhs.x, y + rhs.y, z + rhs.z); }
+    vec3 operator-(const vec3 &rhs) const { return vec3(x - rhs.x, y - rhs.y, z - rhs.z); }
     vec3 operator*(float s) const { return vec3(x * s, y * s, z * s); }
 
     vec3 Normalized() const
@@ -114,28 +120,28 @@ struct vec3
     }
 };
 
-inline float Dot(const vec3& lhs, const vec3& rhs)
+inline float Dot(const vec3 &lhs, const vec3 &rhs)
 {
     return lhs.x * rhs.x + lhs.y * rhs.y + lhs.z * rhs.z;
 }
-inline vec3 Cross(const vec3& lhs, const vec3& rhs)
+inline vec3 Cross(const vec3 &lhs, const vec3 &rhs)
 {
     return vec3(
         lhs.y * rhs.z - lhs.z * rhs.y,
-	    lhs.z * rhs.x - lhs.x * rhs.z,
-	    lhs.x * rhs.y - lhs.y * rhs.x);
+        lhs.z * rhs.x - lhs.x * rhs.z,
+        lhs.x * rhs.y - lhs.y * rhs.x);
 }
 
 struct vec4
 {
     float x, y, z, w;
 
-    vec4() { }
-    vec4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) { }
-    vec4(const vec3& v, float w) : x(v.x), y(v.y), z(v.z), w(w) { }
+    vec4() {}
+    vec4(float x, float y, float z, float w) : x(x), y(y), z(z), w(w) {}
+    vec4(const vec3 &v, float w) : x(v.x), y(v.y), z(v.z), w(w) {}
 
-    float& operator[](uint32_t index) { return *(&x + index); }
-    const float& operator[](uint32_t index) const { return *(&x + index); }
+    float &operator[](uint32_t index) { return *(&x + index); }
+    const float &operator[](uint32_t index) const { return *(&x + index); }
 };
 
 struct mat4
@@ -152,29 +158,27 @@ struct mat4
         float m[4][4]; // [row][column]
     };
 
-    mat4() { }
+    mat4() {}
 
     mat4(
         float _11, float _12, float _13, float _14,
         float _21, float _22, float _23, float _24,
         float _31, float _32, float _33, float _34,
-        float _41, float _42, float _43, float _44) :
-        _11(_11), _12(_12), _13(_13), _14(_14),
-        _21(_21), _22(_22), _23(_23), _24(_24),
-        _31(_31), _32(_32), _33(_33), _34(_34),
-        _41(_41), _42(_42), _43(_43), _44(_44)
+        float _41, float _42, float _43, float _44) : _11(_11), _12(_12), _13(_13), _14(_14),
+                                                      _21(_21), _22(_22), _23(_23), _24(_24),
+                                                      _31(_31), _32(_32), _33(_33), _34(_34),
+                                                      _41(_41), _42(_42), _43(_43), _44(_44)
     {
     }
 
     mat4(
-        const vec4& row1,
-        const vec4& row2,
-        const vec4& row3,
-        const vec4& row4) :
-        _11(row1.x), _12(row1.y), _13(row1.z), _14(row1.w),
-        _21(row2.x), _22(row2.y), _23(row2.z), _24(row2.w),
-        _31(row3.x), _32(row3.y), _33(row3.z), _34(row3.w),
-        _41(row4.x), _42(row4.y), _43(row4.z), _44(row4.w)
+        const vec4 &row1,
+        const vec4 &row2,
+        const vec4 &row3,
+        const vec4 &row4) : _11(row1.x), _12(row1.y), _13(row1.z), _14(row1.w),
+                            _21(row2.x), _22(row2.y), _23(row2.z), _24(row2.w),
+                            _31(row3.x), _32(row3.y), _33(row3.z), _34(row3.w),
+                            _41(row4.x), _42(row4.y), _43(row4.z), _44(row4.w)
     {
     }
 
@@ -206,9 +210,9 @@ struct mat4
     {
         const float s = sin(angle), c = cos(angle);
         return mat4(
-            c,   0.f, -s,  0.f,
+            c, 0.f, -s, 0.f,
             0.f, 1.f, 0.f, 0.f,
-            s,   0.f, c,   0.f,
+            s, 0.f, c, 0.f,
             0.f, 0.f, 0.f, 1.f);
     }
 
@@ -240,7 +244,7 @@ class RandomNumberGenerator
 {
 public:
     RandomNumberGenerator() : m_Value{GetTickCount()} {}
-    RandomNumberGenerator(uint32_t seed) : m_Value{seed} { }
+    RandomNumberGenerator(uint32_t seed) : m_Value{seed} {}
     void Seed(uint32_t seed) { m_Value = seed; }
     uint32_t Generate() { return GenerateFast() ^ (GenerateFast() >> 7); }
 
@@ -253,16 +257,16 @@ private:
 struct MyUniformRandomNumberGenerator
 {
     typedef uint32_t result_type;
-    MyUniformRandomNumberGenerator(RandomNumberGenerator& gen) : m_Gen(gen) { }
+    MyUniformRandomNumberGenerator(RandomNumberGenerator &gen) : m_Gen(gen) {}
     static uint32_t min() { return 0; }
     static uint32_t max() { return UINT32_MAX; }
     uint32_t operator()() { return m_Gen.Generate(); }
 
 private:
-    RandomNumberGenerator& m_Gen;
+    RandomNumberGenerator &m_Gen;
 };
 
-void ReadFile(std::vector<char>& out, const char* fileName);
+void ReadFile(std::vector<char> &out, const char *fileName);
 
 enum class CONSOLE_COLOR
 {
@@ -275,26 +279,26 @@ enum class CONSOLE_COLOR
 
 void SetConsoleColor(CONSOLE_COLOR color);
 
-void PrintMessage(CONSOLE_COLOR color, const char* msg);
-void PrintMessage(CONSOLE_COLOR color, const wchar_t* msg);
+void PrintMessage(CONSOLE_COLOR color, const char *msg);
+void PrintMessage(CONSOLE_COLOR color, const wchar_t *msg);
 
-inline void Print(const char* msg) { PrintMessage(CONSOLE_COLOR::NORMAL, msg); }
-inline void Print(const wchar_t* msg) { PrintMessage(CONSOLE_COLOR::NORMAL, msg); }
-inline void PrintWarning(const char* msg) { PrintMessage(CONSOLE_COLOR::WARNING, msg); }
-inline void PrintWarning(const wchar_t* msg) { PrintMessage(CONSOLE_COLOR::WARNING, msg); }
-inline void PrintError(const char* msg) { PrintMessage(CONSOLE_COLOR::ERROR_, msg); }
-inline void PrintError(const wchar_t* msg) { PrintMessage(CONSOLE_COLOR::ERROR_, msg); }
+inline void Print(const char *msg) { PrintMessage(CONSOLE_COLOR::NORMAL, msg); }
+inline void Print(const wchar_t *msg) { PrintMessage(CONSOLE_COLOR::NORMAL, msg); }
+inline void PrintWarning(const char *msg) { PrintMessage(CONSOLE_COLOR::WARNING, msg); }
+inline void PrintWarning(const wchar_t *msg) { PrintMessage(CONSOLE_COLOR::WARNING, msg); }
+inline void PrintError(const char *msg) { PrintMessage(CONSOLE_COLOR::ERROR_, msg); }
+inline void PrintError(const wchar_t *msg) { PrintMessage(CONSOLE_COLOR::ERROR_, msg); }
 
-void PrintMessageV(CONSOLE_COLOR color, const char* format, va_list argList);
-void PrintMessageV(CONSOLE_COLOR color, const wchar_t* format, va_list argList);
-void PrintMessageF(CONSOLE_COLOR color, const char* format, ...);
-void PrintMessageF(CONSOLE_COLOR color, const wchar_t* format, ...);
-void PrintWarningF(const char* format, ...);
-void PrintWarningF(const wchar_t* format, ...);
-void PrintErrorF(const char* format, ...);
-void PrintErrorF(const wchar_t* format, ...);
+void PrintMessageV(CONSOLE_COLOR color, const char *format, va_list argList);
+void PrintMessageV(CONSOLE_COLOR color, const wchar_t *format, va_list argList);
+void PrintMessageF(CONSOLE_COLOR color, const char *format, ...);
+void PrintMessageF(CONSOLE_COLOR color, const wchar_t *format, ...);
+void PrintWarningF(const char *format, ...);
+void PrintWarningF(const wchar_t *format, ...);
+void PrintErrorF(const char *format, ...);
+void PrintErrorF(const wchar_t *format, ...);
 
-void SaveFile(const wchar_t* filePath, const void* data, size_t dataSize);
+void SaveFile(const wchar_t *filePath, const void *data, size_t dataSize);
 
 #endif // #ifdef _WIN32
 

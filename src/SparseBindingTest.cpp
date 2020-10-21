@@ -38,8 +38,8 @@ extern VkCommandBuffer g_hTemporaryCommandBuffer;
 
 void BeginSingleTimeCommands();
 void EndSingleTimeCommands();
-void SaveAllocatorStatsToFile(const wchar_t* filePath);
-void LoadShader(std::vector<char>& out, const char* fileName);
+void SaveAllocatorStatsToFile(const wchar_t *filePath);
+void LoadShader(std::vector<char> &out, const char *fileName);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Class definitions
@@ -47,12 +47,12 @@ void LoadShader(std::vector<char>& out, const char* fileName);
 static uint32_t CalculateMipMapCount(uint32_t width, uint32_t height, uint32_t depth)
 {
     uint32_t mipMapCount = 1;
-    while(width > 1 || height > 1 || depth > 1)
+    while (width > 1 || height > 1 || depth > 1)
     {
         ++mipMapCount;
-        width  /= 2;
+        width /= 2;
         height /= 2;
-        depth  /= 2;
+        depth /= 2;
     }
     return mipMapCount;
 }
@@ -60,26 +60,26 @@ static uint32_t CalculateMipMapCount(uint32_t width, uint32_t height, uint32_t d
 class BaseImage
 {
 public:
-    virtual void Init(RandomNumberGenerator& rand) = 0;
+    virtual void Init(RandomNumberGenerator &rand) = 0;
     virtual ~BaseImage();
 
-    const VkImageCreateInfo& GetCreateInfo() const { return m_CreateInfo; }
+    const VkImageCreateInfo &GetCreateInfo() const { return m_CreateInfo; }
 
-    void TestContent(RandomNumberGenerator& rand);
+    void TestContent(RandomNumberGenerator &rand);
 
 protected:
     VkImageCreateInfo m_CreateInfo = {};
     VkImage m_Image = VK_NULL_HANDLE;
 
-    void FillImageCreateInfo(RandomNumberGenerator& rand);
+    void FillImageCreateInfo(RandomNumberGenerator &rand);
     void UploadContent();
-    void ValidateContent(RandomNumberGenerator& rand);
+    void ValidateContent(RandomNumberGenerator &rand);
 };
 
 class TraditionalImage : public BaseImage
 {
 public:
-    virtual void Init(RandomNumberGenerator& rand);
+    virtual void Init(RandomNumberGenerator &rand);
     virtual ~TraditionalImage();
 
 private:
@@ -89,7 +89,7 @@ private:
 class SparseBindingImage : public BaseImage
 {
 public:
-    virtual void Init(RandomNumberGenerator& rand);
+    virtual void Init(RandomNumberGenerator &rand);
     virtual ~SparseBindingImage();
 
 private:
@@ -101,21 +101,21 @@ private:
 
 BaseImage::~BaseImage()
 {
-    if(m_Image)
+    if (m_Image)
     {
         vkDestroyImage(g_hDevice, m_Image, nullptr);
     }
 }
 
-void BaseImage::TestContent(RandomNumberGenerator& rand)
+void BaseImage::TestContent(RandomNumberGenerator &rand)
 {
     printf("Validating content of %u x %u texture...\n",
-        m_CreateInfo.extent.width, m_CreateInfo.extent.height);
+           m_CreateInfo.extent.width, m_CreateInfo.extent.height);
     UploadContent();
     ValidateContent(rand);
 }
 
-void BaseImage::FillImageCreateInfo(RandomNumberGenerator& rand)
+void BaseImage::FillImageCreateInfo(RandomNumberGenerator &rand)
 {
     constexpr uint32_t imageSizeMin = 8;
     constexpr uint32_t imageSizeMax = 2048;
@@ -128,8 +128,7 @@ void BaseImage::FillImageCreateInfo(RandomNumberGenerator& rand)
     m_CreateInfo.extent.width = rand.Generate() % (imageSizeMax - imageSizeMin) + imageSizeMin;
     m_CreateInfo.extent.height = rand.Generate() % (imageSizeMax - imageSizeMin) + imageSizeMin;
     m_CreateInfo.extent.depth = 1;
-    m_CreateInfo.mipLevels = useMipMaps ?
-        CalculateMipMapCount(m_CreateInfo.extent.width, m_CreateInfo.extent.height, m_CreateInfo.extent.depth) : 1;
+    m_CreateInfo.mipLevels = useMipMaps ? CalculateMipMapCount(m_CreateInfo.extent.width, m_CreateInfo.extent.height, m_CreateInfo.extent.depth) : 1;
     m_CreateInfo.arrayLayers = 1;
     m_CreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
     m_CreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
@@ -141,7 +140,7 @@ void BaseImage::FillImageCreateInfo(RandomNumberGenerator& rand)
 
 void BaseImage::UploadContent()
 {
-    VkBufferCreateInfo srcBufCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    VkBufferCreateInfo srcBufCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     srcBufCreateInfo.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
     srcBufCreateInfo.size = 4 * m_CreateInfo.extent.width * m_CreateInfo.extent.height;
 
@@ -152,20 +151,20 @@ void BaseImage::UploadContent()
     VkBuffer srcBuf = nullptr;
     VmaAllocation srcBufAlloc = nullptr;
     VmaAllocationInfo srcAllocInfo = {};
-    TEST( vmaCreateBuffer(g_hAllocator, &srcBufCreateInfo, &srcBufAllocCreateInfo, &srcBuf, &srcBufAlloc, &srcAllocInfo) == VK_SUCCESS );
-    
+    TEST(vmaCreateBuffer(g_hAllocator, &srcBufCreateInfo, &srcBufAllocCreateInfo, &srcBuf, &srcBufAlloc, &srcAllocInfo) == VK_SUCCESS);
+
     // Fill texels with: r = x % 255, g = u % 255, b = 13, a = 25
-    uint32_t* srcBufPtr = (uint32_t*)srcAllocInfo.pMappedData;
-    for(uint32_t y = 0, sizeY = m_CreateInfo.extent.height; y < sizeY; ++y)
+    uint32_t *srcBufPtr = (uint32_t *)srcAllocInfo.pMappedData;
+    for (uint32_t y = 0, sizeY = m_CreateInfo.extent.height; y < sizeY; ++y)
     {
-        for(uint32_t x = 0, sizeX = m_CreateInfo.extent.width; x < sizeX; ++x, ++srcBufPtr)
+        for (uint32_t x = 0, sizeX = m_CreateInfo.extent.width; x < sizeX; ++x, ++srcBufPtr)
         {
             const uint8_t r = (uint8_t)x;
             const uint8_t g = (uint8_t)y;
             const uint8_t b = 13;
             const uint8_t a = 25;
             *srcBufPtr = (uint32_t)r << 24 | (uint32_t)g << 16 |
-                (uint32_t)b << 8 | (uint32_t)a;
+                         (uint32_t)b << 8 | (uint32_t)a;
         }
     }
 
@@ -173,7 +172,7 @@ void BaseImage::UploadContent()
 
     // Barrier undefined to transfer dst.
     {
-        VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        VkImageMemoryBarrier barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         barrier.srcAccessMask = 0;
         barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -188,33 +187,33 @@ void BaseImage::UploadContent()
         barrier.subresourceRange.levelCount = 1;
 
         vkCmdPipelineBarrier(g_hTemporaryCommandBuffer,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, // srcStageMask
-            VK_PIPELINE_STAGE_TRANSFER_BIT, // dstStageMask
-            0, // dependencyFlags
-            0, nullptr, // memoryBarriers
-            0, nullptr, // bufferMemoryBarriers
-            1, &barrier); // imageMemoryBarriers
+                             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, // srcStageMask
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,    // dstStageMask
+                             0,                                 // dependencyFlags
+                             0, nullptr,                        // memoryBarriers
+                             0, nullptr,                        // bufferMemoryBarriers
+                             1, &barrier);                      // imageMemoryBarriers
     }
 
     // CopyBufferToImage
     {
         VkBufferImageCopy region = {};
         region.bufferOffset = 0;
-        region.bufferRowLength = 0; // Zeros mean tightly packed.
+        region.bufferRowLength = 0;   // Zeros mean tightly packed.
         region.bufferImageHeight = 0; // Zeros mean tightly packed.
         region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         region.imageSubresource.mipLevel = 0;
         region.imageSubresource.baseArrayLayer = 0;
         region.imageSubresource.layerCount = 1;
-        region.imageOffset = { 0, 0, 0 };
+        region.imageOffset = {0, 0, 0};
         region.imageExtent = m_CreateInfo.extent;
         vkCmdCopyBufferToImage(g_hTemporaryCommandBuffer, srcBuf, m_Image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
     }
-    
+
     // Barrier transfer dst to fragment shader read only.
     {
-        VkImageMemoryBarrier barrier = { VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        VkImageMemoryBarrier barrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
         barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
         barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
         barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -229,12 +228,12 @@ void BaseImage::UploadContent()
         barrier.subresourceRange.levelCount = 1;
 
         vkCmdPipelineBarrier(g_hTemporaryCommandBuffer,
-            VK_PIPELINE_STAGE_TRANSFER_BIT, // srcStageMask
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, // dstStageMask
-            0, // dependencyFlags
-            0, nullptr, // memoryBarriers
-            0, nullptr, // bufferMemoryBarriers
-            1, &barrier); // imageMemoryBarriers
+                             VK_PIPELINE_STAGE_TRANSFER_BIT,        // srcStageMask
+                             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, // dstStageMask
+                             0,                                     // dependencyFlags
+                             0, nullptr,                            // memoryBarriers
+                             0, nullptr,                            // bufferMemoryBarriers
+                             1, &barrier);                          // imageMemoryBarriers
     }
 
     EndSingleTimeCommands();
@@ -242,7 +241,7 @@ void BaseImage::UploadContent()
     vmaDestroyBuffer(g_hAllocator, srcBuf, srcBufAlloc);
 }
 
-void BaseImage::ValidateContent(RandomNumberGenerator& rand)
+void BaseImage::ValidateContent(RandomNumberGenerator &rand)
 {
     /*
     dstBuf has following layout:
@@ -256,7 +255,7 @@ void BaseImage::ValidateContent(RandomNumberGenerator& rand)
 
     const uint32_t valueCount = 128;
 
-    VkBufferCreateInfo dstBufCreateInfo = { VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO };
+    VkBufferCreateInfo dstBufCreateInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
     dstBufCreateInfo.usage = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
     dstBufCreateInfo.size = valueCount * sizeof(uint32_t) * 3;
 
@@ -267,22 +266,22 @@ void BaseImage::ValidateContent(RandomNumberGenerator& rand)
     VkBuffer dstBuf = nullptr;
     VmaAllocation dstBufAlloc = nullptr;
     VmaAllocationInfo dstBufAllocInfo = {};
-    TEST( vmaCreateBuffer(g_hAllocator, &dstBufCreateInfo, &dstBufAllocCreateInfo, &dstBuf, &dstBufAlloc, &dstBufAllocInfo) == VK_SUCCESS );
+    TEST(vmaCreateBuffer(g_hAllocator, &dstBufCreateInfo, &dstBufAllocCreateInfo, &dstBuf, &dstBufAlloc, &dstBufAllocInfo) == VK_SUCCESS);
 
     // Fill dstBuf input data.
     {
-        uint32_t* dstBufContent = (uint32_t*)dstBufAllocInfo.pMappedData;
-        for(uint32_t i = 0; i < valueCount; ++i)
+        uint32_t *dstBufContent = (uint32_t *)dstBufAllocInfo.pMappedData;
+        for (uint32_t i = 0; i < valueCount; ++i)
         {
             const uint32_t x = rand.Generate() % m_CreateInfo.extent.width;
             const uint32_t y = rand.Generate() % m_CreateInfo.extent.height;
-            dstBufContent[i * 3    ] = x;
+            dstBufContent[i * 3] = x;
             dstBufContent[i * 3 + 1] = y;
             dstBufContent[i * 3 + 2] = 0;
         }
     }
 
-    VkSamplerCreateInfo samplerCreateInfo = { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+    VkSamplerCreateInfo samplerCreateInfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
     samplerCreateInfo.magFilter = VK_FILTER_NEAREST;
     samplerCreateInfo.minFilter = VK_FILTER_NEAREST;
     samplerCreateInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
@@ -292,7 +291,7 @@ void BaseImage::ValidateContent(RandomNumberGenerator& rand)
     samplerCreateInfo.unnormalizedCoordinates = VK_TRUE;
 
     VkSampler sampler = nullptr;
-    TEST( vkCreateSampler( g_hDevice, &samplerCreateInfo, nullptr, &sampler) == VK_SUCCESS );
+    TEST(vkCreateSampler(g_hDevice, &samplerCreateInfo, nullptr, &sampler) == VK_SUCCESS);
 
     VkDescriptorSetLayoutBinding bindings[2] = {};
     bindings[0].binding = 0;
@@ -305,31 +304,31 @@ void BaseImage::ValidateContent(RandomNumberGenerator& rand)
     bindings[1].descriptorCount = 1;
     bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
 
-    VkDescriptorSetLayoutCreateInfo descSetLayoutCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO };
+    VkDescriptorSetLayoutCreateInfo descSetLayoutCreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
     descSetLayoutCreateInfo.bindingCount = 2;
     descSetLayoutCreateInfo.pBindings = bindings;
 
     VkDescriptorSetLayout descSetLayout = nullptr;
-    TEST( vkCreateDescriptorSetLayout(g_hDevice, &descSetLayoutCreateInfo, nullptr, &descSetLayout) == VK_SUCCESS );
+    TEST(vkCreateDescriptorSetLayout(g_hDevice, &descSetLayoutCreateInfo, nullptr, &descSetLayout) == VK_SUCCESS);
 
-    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = { VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
     pipelineLayoutCreateInfo.setLayoutCount = 1;
     pipelineLayoutCreateInfo.pSetLayouts = &descSetLayout;
 
     VkPipelineLayout pipelineLayout = nullptr;
-    TEST( vkCreatePipelineLayout(g_hDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout) == VK_SUCCESS );
+    TEST(vkCreatePipelineLayout(g_hDevice, &pipelineLayoutCreateInfo, nullptr, &pipelineLayout) == VK_SUCCESS);
 
     std::vector<char> shaderCode;
     LoadShader(shaderCode, "SparseBindingTest.comp.spv");
 
-    VkShaderModuleCreateInfo shaderModuleCreateInfo = { VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+    VkShaderModuleCreateInfo shaderModuleCreateInfo = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
     shaderModuleCreateInfo.codeSize = shaderCode.size();
-    shaderModuleCreateInfo.pCode = (const uint32_t*)shaderCode.data();
+    shaderModuleCreateInfo.pCode = (const uint32_t *)shaderCode.data();
 
     VkShaderModule shaderModule = nullptr;
-    TEST( vkCreateShaderModule(g_hDevice, &shaderModuleCreateInfo, nullptr, &shaderModule) == VK_SUCCESS );
+    TEST(vkCreateShaderModule(g_hDevice, &shaderModuleCreateInfo, nullptr, &shaderModule) == VK_SUCCESS);
 
-    VkComputePipelineCreateInfo pipelineCreateInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+    VkComputePipelineCreateInfo pipelineCreateInfo = {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
     pipelineCreateInfo.stage.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     pipelineCreateInfo.stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
     pipelineCreateInfo.stage.module = shaderModule;
@@ -337,7 +336,7 @@ void BaseImage::ValidateContent(RandomNumberGenerator& rand)
     pipelineCreateInfo.layout = pipelineLayout;
 
     VkPipeline pipeline = nullptr;
-    TEST( vkCreateComputePipelines(g_hDevice, nullptr, 1, &pipelineCreateInfo, nullptr, &pipeline) == VK_SUCCESS );
+    TEST(vkCreateComputePipelines(g_hDevice, nullptr, 1, &pipelineCreateInfo, nullptr, &pipeline) == VK_SUCCESS);
 
     VkDescriptorPoolSize poolSizes[2] = {};
     poolSizes[0].type = bindings[0].descriptorType;
@@ -345,23 +344,23 @@ void BaseImage::ValidateContent(RandomNumberGenerator& rand)
     poolSizes[1].type = bindings[1].descriptorType;
     poolSizes[1].descriptorCount = bindings[1].descriptorCount;
 
-    VkDescriptorPoolCreateInfo descPoolCreateInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+    VkDescriptorPoolCreateInfo descPoolCreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
     descPoolCreateInfo.maxSets = 1;
     descPoolCreateInfo.poolSizeCount = 2;
     descPoolCreateInfo.pPoolSizes = poolSizes;
 
     VkDescriptorPool descPool = nullptr;
-    TEST( vkCreateDescriptorPool(g_hDevice, &descPoolCreateInfo, nullptr, &descPool) == VK_SUCCESS );
+    TEST(vkCreateDescriptorPool(g_hDevice, &descPoolCreateInfo, nullptr, &descPool) == VK_SUCCESS);
 
-    VkDescriptorSetAllocateInfo descSetAllocInfo = { VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO };
+    VkDescriptorSetAllocateInfo descSetAllocInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO};
     descSetAllocInfo.descriptorPool = descPool;
     descSetAllocInfo.descriptorSetCount = 1;
     descSetAllocInfo.pSetLayouts = &descSetLayout;
 
     VkDescriptorSet descSet = nullptr;
-    TEST( vkAllocateDescriptorSets(g_hDevice, &descSetAllocInfo, &descSet) == VK_SUCCESS );
+    TEST(vkAllocateDescriptorSets(g_hDevice, &descSetAllocInfo, &descSet) == VK_SUCCESS);
 
-    VkImageViewCreateInfo imageViewCreateInfo = { VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO };
+    VkImageViewCreateInfo imageViewCreateInfo = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO};
     imageViewCreateInfo.image = m_Image;
     imageViewCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
     imageViewCreateInfo.format = m_CreateInfo.format;
@@ -370,7 +369,7 @@ void BaseImage::ValidateContent(RandomNumberGenerator& rand)
     imageViewCreateInfo.subresourceRange.levelCount = 1;
 
     VkImageView imageView = nullptr;
-    TEST( vkCreateImageView(g_hDevice, &imageViewCreateInfo, nullptr, &imageView) == VK_SUCCESS );
+    TEST(vkCreateImageView(g_hDevice, &imageViewCreateInfo, nullptr, &imageView) == VK_SUCCESS);
 
     VkDescriptorImageInfo descImageInfo = {};
     descImageInfo.imageView = imageView;
@@ -406,15 +405,15 @@ void BaseImage::ValidateContent(RandomNumberGenerator& rand)
 
     // Validate dstBuf output data.
     {
-        const uint32_t* dstBufContent = (const uint32_t*)dstBufAllocInfo.pMappedData;
-        for(uint32_t i = 0; i < valueCount; ++i)
+        const uint32_t *dstBufContent = (const uint32_t *)dstBufAllocInfo.pMappedData;
+        for (uint32_t i = 0; i < valueCount; ++i)
         {
-            const uint32_t x     = dstBufContent[i * 3    ];
-            const uint32_t y     = dstBufContent[i * 3 + 1];
+            const uint32_t x = dstBufContent[i * 3];
+            const uint32_t y = dstBufContent[i * 3 + 1];
             const uint32_t color = dstBufContent[i * 3 + 2];
             const uint8_t a = (uint8_t)(color >> 24);
             const uint8_t b = (uint8_t)(color >> 16);
-            const uint8_t g = (uint8_t)(color >>  8);
+            const uint8_t g = (uint8_t)(color >> 8);
             const uint8_t r = (uint8_t)color;
             TEST(r == (uint8_t)x && g == (uint8_t)y && b == 13 && a == 25);
         }
@@ -433,7 +432,7 @@ void BaseImage::ValidateContent(RandomNumberGenerator& rand)
 ////////////////////////////////////////////////////////////////////////////////
 // class TraditionalImage
 
-void TraditionalImage::Init(RandomNumberGenerator& rand)
+void TraditionalImage::Init(RandomNumberGenerator &rand)
 {
     FillImageCreateInfo(rand);
 
@@ -441,14 +440,14 @@ void TraditionalImage::Init(RandomNumberGenerator& rand)
     allocCreateInfo.usage = VMA_MEMORY_USAGE_GPU_ONLY;
     // Default BEST_FIT is clearly better.
     //allocCreateInfo.flags |= VMA_ALLOCATION_CREATE_STRATEGY_WORST_FIT_BIT;
-    
-    ERR_GUARD_VULKAN( vmaCreateImage(g_hAllocator, &m_CreateInfo, &allocCreateInfo,
-        &m_Image, &m_Allocation, nullptr) );
+
+    ERR_GUARD_VULKAN(vmaCreateImage(g_hAllocator, &m_CreateInfo, &allocCreateInfo,
+                                    &m_Image, &m_Allocation, nullptr));
 }
 
 TraditionalImage::~TraditionalImage()
 {
-    if(m_Allocation)
+    if (m_Allocation)
     {
         vmaFreeMemory(g_hAllocator, m_Allocation);
     }
@@ -457,14 +456,14 @@ TraditionalImage::~TraditionalImage()
 ////////////////////////////////////////////////////////////////////////////////
 // class SparseBindingImage
 
-void SparseBindingImage::Init(RandomNumberGenerator& rand)
+void SparseBindingImage::Init(RandomNumberGenerator &rand)
 {
     assert(g_SparseBindingEnabled && g_hSparseBindingQueue);
 
     // Create image.
     FillImageCreateInfo(rand);
     m_CreateInfo.flags |= VK_IMAGE_CREATE_SPARSE_BINDING_BIT;
-    ERR_GUARD_VULKAN( vkCreateImage(g_hDevice, &m_CreateInfo, nullptr, &m_Image) );
+    ERR_GUARD_VULKAN(vkCreateImage(g_hDevice, &m_CreateInfo, nullptr, &m_Image));
 
     // Get memory requirements.
     VkMemoryRequirements imageMemReq;
@@ -494,9 +493,9 @@ void SparseBindingImage::Init(RandomNumberGenerator& rand)
     std::fill(m_Allocations.begin(), m_Allocations.end(), nullptr);
     std::vector<VkSparseMemoryBind> binds{pageCount};
     std::vector<VmaAllocationInfo> allocInfo{pageCount};
-    ERR_GUARD_VULKAN( vmaAllocateMemoryPages(g_hAllocator, &pageMemReq, &allocCreateInfo, pageCount, m_Allocations.data(), allocInfo.data()) );
+    ERR_GUARD_VULKAN(vmaAllocateMemoryPages(g_hAllocator, &pageMemReq, &allocCreateInfo, pageCount, m_Allocations.data(), allocInfo.data()));
 
-    for(uint32_t i = 0; i < pageCount; ++i)
+    for (uint32_t i = 0; i < pageCount; ++i)
     {
         binds[i] = {};
         binds[i].resourceOffset = pageSize * i;
@@ -510,13 +509,13 @@ void SparseBindingImage::Init(RandomNumberGenerator& rand)
     imageBindInfo.bindCount = pageCount;
     imageBindInfo.pBinds = binds.data();
 
-    VkBindSparseInfo bindSparseInfo = { VK_STRUCTURE_TYPE_BIND_SPARSE_INFO };
+    VkBindSparseInfo bindSparseInfo = {VK_STRUCTURE_TYPE_BIND_SPARSE_INFO};
     bindSparseInfo.pImageOpaqueBinds = &imageBindInfo;
     bindSparseInfo.imageOpaqueBindCount = 1;
-    
-    ERR_GUARD_VULKAN( vkResetFences(g_hDevice, 1, &g_ImmediateFence) );
-    ERR_GUARD_VULKAN( vkQueueBindSparse(g_hSparseBindingQueue, 1, &bindSparseInfo, g_ImmediateFence) );
-    ERR_GUARD_VULKAN( vkWaitForFences(g_hDevice, 1, &g_ImmediateFence, VK_TRUE, UINT64_MAX) );
+
+    ERR_GUARD_VULKAN(vkResetFences(g_hDevice, 1, &g_ImmediateFence));
+    ERR_GUARD_VULKAN(vkQueueBindSparse(g_hSparseBindingQueue, 1, &bindSparseInfo, g_ImmediateFence));
+    ERR_GUARD_VULKAN(vkWaitForFences(g_hDevice, 1, &g_ImmediateFence, VK_TRUE, UINT64_MAX));
 }
 
 SparseBindingImage::~SparseBindingImage()
@@ -545,7 +544,7 @@ void TestSparseBinding()
 
     RandomNumberGenerator rand(4652467);
 
-    for(uint32_t i = 0; i < frameCount; ++i)
+    for (uint32_t i = 0; i < frameCount; ++i)
     {
         // Bump frame index.
         ++g_FrameIndex;
@@ -560,9 +559,9 @@ void TestSparseBinding()
         images.push_back(std::move(imageInfo));
 
         // Delete all images that expired.
-        for(size_t i = images.size(); i--; )
+        for (size_t i = images.size(); i--;)
         {
-            if(g_FrameIndex >= images[i].endFrame)
+            if (g_FrameIndex >= images[i].endFrame)
             {
                 images.erase(images.begin() + i);
             }
@@ -572,10 +571,10 @@ void TestSparseBinding()
     SaveAllocatorStatsToFile(L"SparseBindingTest.json");
 
     // Choose biggest image. Test uploading and sampling.
-    BaseImage* biggestImage = nullptr;
-    for(size_t i = 0, count = images.size(); i < count; ++i)
+    BaseImage *biggestImage = nullptr;
+    for (size_t i = 0, count = images.size(); i < count; ++i)
     {
-        if(!biggestImage ||
+        if (!biggestImage ||
             images[i].image->GetCreateInfo().extent.width * images[i].image->GetCreateInfo().extent.height >
                 biggestImage->GetCreateInfo().extent.width * biggestImage->GetCreateInfo().extent.height)
         {
