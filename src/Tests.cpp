@@ -23,12 +23,14 @@
 #include "Tests.h"
 #include "VmaUsage.h"
 #include "Common.h"
+#include "pt_mcrt_thread.h"
+#include "pt_mcrt_atomic.h"
 #include <atomic>
 #include <thread>
 #include <mutex>
 #include <functional>
-
-#ifdef _WIN32
+#include <time.h>
+#include <inttypes.h>
 
 static const char *CODE_DESCRIPTION = "Foo";
 
@@ -325,14 +327,347 @@ public:
 
 static void CurrentTimeToStr(std::string &out)
 {
+#if defined(_WIN32)
     time_t rawTime;
     time(&rawTime);
     struct tm timeInfo;
     localtime_s(&timeInfo, &rawTime);
+#elif defined(__linux__)
+    time_t rawTime;
+    time(&rawTime);
+    struct tm timeInfo;
+    localtime_r(&rawTime, &timeInfo);
+#else
+#error 1
+#endif
     char timeStr[128];
     strftime(timeStr, _countof(timeStr), "%c", &timeInfo);
     out = timeStr;
 }
+
+struct MainTest_Allocation
+{
+    VkBuffer Buffer;
+    VkImage Image;
+    VmaAllocation Alloc;
+};
+
+struct MainTest_ThreadInitArg
+{
+    int64_t volatile *_allocationCount;
+    uint32_t _randSeed;
+    uint32_t _allocationSizeProbabilitySum;
+    uint32_t _memUsageProbabilitySum;
+    int32_t volatile *_numThreadsReachedMaxAllocations;
+    Config const *_config;
+    std::vector<MainTest_Allocation> *_commonAllocations;
+    Result *_outResult;
+    RandomNumberGenerator *_mainRand;
+    VkResult *_res;
+    mcrt_mutex_t *_commonAllocationsMutex;
+    mcrt_mutex_t *_threadsFinishMutex;
+    mcrt_cond_t *_threadsFinishCond;
+    mcrt_event_t *_threadsFinishEvent;
+};
+
+static VkResult MainTest_Allocate(
+    int64_t volatile &allocationCount,
+    uint32_t memUsageProbabilitySum,
+    Config const &config,
+    Result &outResult,
+    VkResult &res,
+    mcrt_mutex_t &commonAllocationsMutex,
+    std::vector<MainTest_Allocation> &commonAllocations,
+    VkDeviceSize bufferSize,
+    const VkExtent2D imageExtent,
+    RandomNumberGenerator &localRand,
+    VkDeviceSize &totalAllocatedBytes,
+    std::vector<MainTest_Allocation> &allocations)
+{
+    assert((bufferSize == 0) != (imageExtent.width == 0 && imageExtent.height == 0));
+
+    uint32_t memUsageIndex = 0;
+    uint32_t memUsageRand = localRand.Generate() % memUsageProbabilitySum;
+    while (memUsageRand >= config.MemUsageProbability[memUsageIndex])
+        memUsageRand -= config.MemUsageProbability[memUsageIndex++];
+
+    VmaAllocationCreateInfo memReq = {};
+    memReq.usage = (VmaMemoryUsage)(VMA_MEMORY_USAGE_GPU_ONLY + memUsageIndex);
+    memReq.flags |= config.AllocationStrategy;
+
+    MainTest_Allocation allocation = {};
+    VmaAllocationInfo allocationInfo;
+
+    // Buffer
+    if (bufferSize > 0)
+    {
+        assert(imageExtent.width == 0);
+        VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
+        bufferInfo.size = bufferSize;
+        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+
+        {
+            AllocationTimeRegisterObj timeRegisterObj{outResult};
+            res = vmaCreateBuffer(g_hAllocator, &bufferInfo, &memReq, &allocation.Buffer, &allocation.Alloc, &allocationInfo);
+        }
+    }
+    // Image
+    else
+    {
+        VkImageCreateInfo imageInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.extent.width = imageExtent.width;
+        imageInfo.extent.height = imageExtent.height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        imageInfo.tiling = memReq.usage == VMA_MEMORY_USAGE_GPU_ONLY ? VK_IMAGE_TILING_OPTIMAL : VK_IMAGE_TILING_LINEAR;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+        switch (memReq.usage)
+        {
+        case VMA_MEMORY_USAGE_GPU_ONLY:
+            switch (localRand.Generate() % 3)
+            {
+            case 0:
+                imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+                break;
+            case 1:
+                imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+                break;
+            case 2:
+                imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+                break;
+            }
+            break;
+        case VMA_MEMORY_USAGE_CPU_ONLY:
+        case VMA_MEMORY_USAGE_CPU_TO_GPU:
+            imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+            break;
+        case VMA_MEMORY_USAGE_GPU_TO_CPU:
+            imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            break;
+        case VMA_MEMORY_USAGE_UNKNOWN:
+        case VMA_MEMORY_USAGE_CPU_COPY:
+        case VMA_MEMORY_USAGE_GPU_LAZILY_ALLOCATED:
+        case VMA_MEMORY_USAGE_MAX_ENUM:
+            break;
+        }
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.flags = 0;
+
+        {
+            AllocationTimeRegisterObj timeRegisterObj{outResult};
+            res = vmaCreateImage(g_hAllocator, &imageInfo, &memReq, &allocation.Image, &allocation.Alloc, &allocationInfo);
+        }
+    }
+
+    if (res == VK_SUCCESS)
+    {
+        mcrt_atomic_inc_i64(&allocationCount);
+        totalAllocatedBytes += allocationInfo.size;
+        bool useCommonAllocations = localRand.Generate() % 100 < config.ThreadsUsingCommonAllocationsProbabilityPercent;
+        if (useCommonAllocations)
+        {
+            mcrt_os_mutex_lock(&commonAllocationsMutex);
+
+            commonAllocations.push_back(allocation);
+
+            mcrt_os_mutex_unlock(&commonAllocationsMutex);
+        }
+        else
+            allocations.push_back(allocation);
+    }
+    else
+    {
+        TEST(0);
+    }
+    return res;
+}
+
+static void MainTest_GetNextAllocationSize(
+    uint32_t allocationSizeProbabilitySum,
+    Config const &config,
+    VkDeviceSize &outBufSize,
+    VkExtent2D &outImageSize,
+    RandomNumberGenerator &localRand)
+{
+    outBufSize = 0;
+    outImageSize = {0, 0};
+
+    uint32_t allocSizeIndex = 0;
+    uint32_t r = localRand.Generate() % allocationSizeProbabilitySum;
+    while (r >= config.AllocationSizes[allocSizeIndex].Probability)
+        r -= config.AllocationSizes[allocSizeIndex++].Probability;
+
+    const AllocationSize &allocSize = config.AllocationSizes[allocSizeIndex];
+    if (allocSize.BufferSizeMax > 0)
+    {
+        assert(allocSize.ImageSizeMax == 0);
+        if (allocSize.BufferSizeMax == allocSize.BufferSizeMin)
+            outBufSize = allocSize.BufferSizeMin;
+        else
+        {
+            outBufSize = allocSize.BufferSizeMin + localRand.Generate() % (allocSize.BufferSizeMax - allocSize.BufferSizeMin);
+            outBufSize = outBufSize / 16 * 16;
+        }
+    }
+    else
+    {
+        if (allocSize.ImageSizeMax == allocSize.ImageSizeMin)
+            outImageSize.width = outImageSize.height = allocSize.ImageSizeMax;
+        else
+        {
+            outImageSize.width = allocSize.ImageSizeMin + localRand.Generate() % (allocSize.ImageSizeMax - allocSize.ImageSizeMin);
+            outImageSize.height = allocSize.ImageSizeMin + localRand.Generate() % (allocSize.ImageSizeMax - allocSize.ImageSizeMin);
+        }
+    }
+}
+
+static void *MainTest_ThreadInitAddr(void *arg)
+{
+    int64_t volatile &allocationCount = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_allocationCount);
+    uint32_t randSeed = static_cast<struct MainTest_ThreadInitArg *>(arg)->_randSeed;
+    uint32_t allocationSizeProbabilitySum = static_cast<struct MainTest_ThreadInitArg *>(arg)->_allocationSizeProbabilitySum;
+    uint32_t memUsageProbabilitySum = static_cast<struct MainTest_ThreadInitArg *>(arg)->_memUsageProbabilitySum;
+    int32_t volatile &numThreadsReachedMaxAllocations = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_numThreadsReachedMaxAllocations);
+    Config const &config = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_config);
+    std::vector<MainTest_Allocation> &commonAllocations = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_commonAllocations);
+    Result &outResult = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_outResult);
+    RandomNumberGenerator &mainRand = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_mainRand);
+    VkResult &res = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_res);
+    mcrt_mutex_t &commonAllocationsMutex = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_commonAllocationsMutex);
+    mcrt_mutex_t &threadsFinishMutex = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_threadsFinishMutex);
+    mcrt_cond_t &threadsFinishCond = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_threadsFinishCond);
+    mcrt_event_t &threadsFinishEvent = (*static_cast<struct MainTest_ThreadInitArg *>(arg)->_threadsFinishEvent);
+
+    RandomNumberGenerator threadRand(randSeed);
+    VkDeviceSize threadTotalAllocatedBytes = 0;
+    std::vector<MainTest_Allocation> threadAllocations;
+    VkDeviceSize threadBeginBytesToAllocate = config.BeginBytesToAllocate / config.ThreadCount;
+    VkDeviceSize threadMaxBytesToAllocate = config.MaxBytesToAllocate / config.ThreadCount;
+    uint32_t threadAdditionalOperationCount = config.AdditionalOperationCount / config.ThreadCount;
+
+    // BEGIN ALLOCATIONS
+    for (;;)
+    {
+        VkDeviceSize bufferSize = 0;
+        VkExtent2D imageExtent = {};
+        MainTest_GetNextAllocationSize(allocationSizeProbabilitySum, config, bufferSize, imageExtent, threadRand);
+        if (threadTotalAllocatedBytes + bufferSize + imageExtent.width * imageExtent.height * IMAGE_BYTES_PER_PIXEL <
+            threadBeginBytesToAllocate)
+        {
+            if (MainTest_Allocate(allocationCount, memUsageProbabilitySum, config, outResult, res, commonAllocationsMutex, commonAllocations, bufferSize, imageExtent, threadRand, threadTotalAllocatedBytes, threadAllocations) != VK_SUCCESS)
+                break;
+        }
+        else
+            break;
+    }
+
+    // ADDITIONAL ALLOCATIONS AND FREES
+    for (size_t i = 0; i < threadAdditionalOperationCount; ++i)
+    {
+        VkDeviceSize bufferSize = 0;
+        VkExtent2D imageExtent = {};
+        MainTest_GetNextAllocationSize(allocationSizeProbabilitySum, config, bufferSize, imageExtent, threadRand);
+
+        // true = allocate, false = free
+        bool allocate = threadRand.Generate() % 2 != 0;
+
+        if (allocate)
+        {
+            if (threadTotalAllocatedBytes +
+                    bufferSize +
+                    imageExtent.width * imageExtent.height * IMAGE_BYTES_PER_PIXEL <
+                threadMaxBytesToAllocate)
+            {
+                if (MainTest_Allocate(allocationCount, memUsageProbabilitySum, config, outResult, res, commonAllocationsMutex, commonAllocations, bufferSize, imageExtent, threadRand, threadTotalAllocatedBytes, threadAllocations) != VK_SUCCESS)
+                    break;
+            }
+        }
+        else
+        {
+            bool useCommonAllocations = threadRand.Generate() % 100 < config.ThreadsUsingCommonAllocationsProbabilityPercent;
+            if (useCommonAllocations)
+            {
+                mcrt_os_mutex_lock(&commonAllocationsMutex);
+
+                if (!commonAllocations.empty())
+                {
+                    size_t indexToFree = threadRand.Generate() % commonAllocations.size();
+                    VmaAllocationInfo allocationInfo;
+                    vmaGetAllocationInfo(g_hAllocator, commonAllocations[indexToFree].Alloc, &allocationInfo);
+                    if (threadTotalAllocatedBytes >= allocationInfo.size)
+                    {
+                        DeallocationTimeRegisterObj timeRegisterObj{outResult};
+                        if (commonAllocations[indexToFree].Buffer != VK_NULL_HANDLE)
+                            vmaDestroyBuffer(g_hAllocator, commonAllocations[indexToFree].Buffer, commonAllocations[indexToFree].Alloc);
+                        else
+                            vmaDestroyImage(g_hAllocator, commonAllocations[indexToFree].Image, commonAllocations[indexToFree].Alloc);
+                        threadTotalAllocatedBytes -= allocationInfo.size;
+                        commonAllocations.erase(commonAllocations.begin() + indexToFree);
+                    }
+                }
+
+                mcrt_os_mutex_unlock(&commonAllocationsMutex);
+            }
+            else
+            {
+                if (!threadAllocations.empty())
+                {
+                    size_t indexToFree = threadRand.Generate() % threadAllocations.size();
+                    VmaAllocationInfo allocationInfo;
+                    vmaGetAllocationInfo(g_hAllocator, threadAllocations[indexToFree].Alloc, &allocationInfo);
+                    if (threadTotalAllocatedBytes >= allocationInfo.size)
+                    {
+                        DeallocationTimeRegisterObj timeRegisterObj{outResult};
+                        if (threadAllocations[indexToFree].Buffer != VK_NULL_HANDLE)
+                            vmaDestroyBuffer(g_hAllocator, threadAllocations[indexToFree].Buffer, threadAllocations[indexToFree].Alloc);
+                        else
+                            vmaDestroyImage(g_hAllocator, threadAllocations[indexToFree].Image, threadAllocations[indexToFree].Alloc);
+                        threadTotalAllocatedBytes -= allocationInfo.size;
+                        threadAllocations.erase(threadAllocations.begin() + indexToFree);
+                    }
+                }
+            }
+        }
+    }
+
+    mcrt_atomic_inc_i32(&numThreadsReachedMaxAllocations);
+
+    mcrt_os_event_wait_one(&threadsFinishCond, &threadsFinishMutex, &threadsFinishEvent);
+
+    // DEALLOCATION
+    while (!threadAllocations.empty())
+    {
+        size_t indexToFree = 0;
+        switch (config.FreeOrder)
+        {
+        case FREE_ORDER::FORWARD:
+            indexToFree = 0;
+            break;
+        case FREE_ORDER::BACKWARD:
+            indexToFree = threadAllocations.size() - 1;
+            break;
+        case FREE_ORDER::RANDOM:
+            indexToFree = mainRand.Generate() % threadAllocations.size();
+            break;
+        case FREE_ORDER::COUNT:
+            break;
+        }
+
+        {
+            DeallocationTimeRegisterObj timeRegisterObj{outResult};
+            if (threadAllocations[indexToFree].Buffer != VK_NULL_HANDLE)
+                vmaDestroyBuffer(g_hAllocator, threadAllocations[indexToFree].Buffer, threadAllocations[indexToFree].Alloc);
+            else
+                vmaDestroyImage(g_hAllocator, threadAllocations[indexToFree].Image, threadAllocations[indexToFree].Alloc);
+        }
+        threadAllocations.erase(threadAllocations.begin() + indexToFree);
+    }
+
+    return NULL;
+};
 
 VkResult MainTest(Result &outResult, const Config &config)
 {
@@ -344,7 +679,7 @@ VkResult MainTest(Result &outResult, const Config &config)
 
     time_point timeBeg = std::chrono::high_resolution_clock::now();
 
-    std::atomic<size_t> allocationCount = 0;
+    int64_t volatile allocationCount = 0;
     VkResult res = VK_SUCCESS;
 
     uint32_t memUsageProbabilitySum =
@@ -360,286 +695,55 @@ VkResult MainTest(Result &outResult, const Config &config)
             return sum + allocSize.Probability;
         });
 
-    struct Allocation
-    {
-        VkBuffer Buffer;
-        VkImage Image;
-        VmaAllocation Alloc;
-    };
+    std::vector<MainTest_Allocation> commonAllocations;
+    mcrt_mutex_t commonAllocationsMutex;
+    mcrt_os_mutex_init(&commonAllocationsMutex);
 
-    std::vector<Allocation> commonAllocations;
-    std::mutex commonAllocationsMutex;
+    int32_t volatile numThreadsReachedMaxAllocations = 0;
+    mcrt_mutex_t threadsFinishMutex;
+    mcrt_cond_t threadsFinishCond;
+    mcrt_event_t threadsFinishEvent;
 
-    auto Allocate = [&](
-                        VkDeviceSize bufferSize,
-                        const VkExtent2D imageExtent,
-                        RandomNumberGenerator &localRand,
-                        VkDeviceSize &totalAllocatedBytes,
-                        std::vector<Allocation> &allocations) -> VkResult {
-        assert((bufferSize == 0) != (imageExtent.width == 0 && imageExtent.height == 0));
-
-        uint32_t memUsageIndex = 0;
-        uint32_t memUsageRand = localRand.Generate() % memUsageProbabilitySum;
-        while (memUsageRand >= config.MemUsageProbability[memUsageIndex])
-            memUsageRand -= config.MemUsageProbability[memUsageIndex++];
-
-        VmaAllocationCreateInfo memReq = {};
-        memReq.usage = (VmaMemoryUsage)(VMA_MEMORY_USAGE_GPU_ONLY + memUsageIndex);
-        memReq.flags |= config.AllocationStrategy;
-
-        Allocation allocation = {};
-        VmaAllocationInfo allocationInfo;
-
-        // Buffer
-        if (bufferSize > 0)
-        {
-            assert(imageExtent.width == 0);
-            VkBufferCreateInfo bufferInfo = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
-            bufferInfo.size = bufferSize;
-            bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-
-            {
-                AllocationTimeRegisterObj timeRegisterObj{outResult};
-                res = vmaCreateBuffer(g_hAllocator, &bufferInfo, &memReq, &allocation.Buffer, &allocation.Alloc, &allocationInfo);
-            }
-        }
-        // Image
-        else
-        {
-            VkImageCreateInfo imageInfo = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
-            imageInfo.imageType = VK_IMAGE_TYPE_2D;
-            imageInfo.extent.width = imageExtent.width;
-            imageInfo.extent.height = imageExtent.height;
-            imageInfo.extent.depth = 1;
-            imageInfo.mipLevels = 1;
-            imageInfo.arrayLayers = 1;
-            imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
-            imageInfo.tiling = memReq.usage == VMA_MEMORY_USAGE_GPU_ONLY ? VK_IMAGE_TILING_OPTIMAL : VK_IMAGE_TILING_LINEAR;
-            imageInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-            switch (memReq.usage)
-            {
-            case VMA_MEMORY_USAGE_GPU_ONLY:
-                switch (localRand.Generate() % 3)
-                {
-                case 0:
-                    imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-                    break;
-                case 1:
-                    imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-                    break;
-                case 2:
-                    imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-                    break;
-                }
-                break;
-            case VMA_MEMORY_USAGE_CPU_ONLY:
-            case VMA_MEMORY_USAGE_CPU_TO_GPU:
-                imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-                break;
-            case VMA_MEMORY_USAGE_GPU_TO_CPU:
-                imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-                break;
-            }
-            imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-            imageInfo.flags = 0;
-
-            {
-                AllocationTimeRegisterObj timeRegisterObj{outResult};
-                res = vmaCreateImage(g_hAllocator, &imageInfo, &memReq, &allocation.Image, &allocation.Alloc, &allocationInfo);
-            }
-        }
-
-        if (res == VK_SUCCESS)
-        {
-            ++allocationCount;
-            totalAllocatedBytes += allocationInfo.size;
-            bool useCommonAllocations = localRand.Generate() % 100 < config.ThreadsUsingCommonAllocationsProbabilityPercent;
-            if (useCommonAllocations)
-            {
-                std::unique_lock<std::mutex> lock(commonAllocationsMutex);
-                commonAllocations.push_back(allocation);
-            }
-            else
-                allocations.push_back(allocation);
-        }
-        else
-        {
-            TEST(0);
-        }
-        return res;
-    };
-
-    auto GetNextAllocationSize = [&](
-                                     VkDeviceSize &outBufSize,
-                                     VkExtent2D &outImageSize,
-                                     RandomNumberGenerator &localRand) {
-        outBufSize = 0;
-        outImageSize = {0, 0};
-
-        uint32_t allocSizeIndex = 0;
-        uint32_t r = localRand.Generate() % allocationSizeProbabilitySum;
-        while (r >= config.AllocationSizes[allocSizeIndex].Probability)
-            r -= config.AllocationSizes[allocSizeIndex++].Probability;
-
-        const AllocationSize &allocSize = config.AllocationSizes[allocSizeIndex];
-        if (allocSize.BufferSizeMax > 0)
-        {
-            assert(allocSize.ImageSizeMax == 0);
-            if (allocSize.BufferSizeMax == allocSize.BufferSizeMin)
-                outBufSize = allocSize.BufferSizeMin;
-            else
-            {
-                outBufSize = allocSize.BufferSizeMin + localRand.Generate() % (allocSize.BufferSizeMax - allocSize.BufferSizeMin);
-                outBufSize = outBufSize / 16 * 16;
-            }
-        }
-        else
-        {
-            if (allocSize.ImageSizeMax == allocSize.ImageSizeMin)
-                outImageSize.width = outImageSize.height = allocSize.ImageSizeMax;
-            else
-            {
-                outImageSize.width = allocSize.ImageSizeMin + localRand.Generate() % (allocSize.ImageSizeMax - allocSize.ImageSizeMin);
-                outImageSize.height = allocSize.ImageSizeMin + localRand.Generate() % (allocSize.ImageSizeMax - allocSize.ImageSizeMin);
-            }
-        }
-    };
-
-    std::atomic<uint32_t> numThreadsReachedMaxAllocations = 0;
-    HANDLE threadsFinishEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-
-    auto ThreadProc = [&](uint32_t randSeed) -> void {
-        RandomNumberGenerator threadRand(randSeed);
-        VkDeviceSize threadTotalAllocatedBytes = 0;
-        std::vector<Allocation> threadAllocations;
-        VkDeviceSize threadBeginBytesToAllocate = config.BeginBytesToAllocate / config.ThreadCount;
-        VkDeviceSize threadMaxBytesToAllocate = config.MaxBytesToAllocate / config.ThreadCount;
-        uint32_t threadAdditionalOperationCount = config.AdditionalOperationCount / config.ThreadCount;
-
-        // BEGIN ALLOCATIONS
-        for (;;)
-        {
-            VkDeviceSize bufferSize = 0;
-            VkExtent2D imageExtent = {};
-            GetNextAllocationSize(bufferSize, imageExtent, threadRand);
-            if (threadTotalAllocatedBytes + bufferSize + imageExtent.width * imageExtent.height * IMAGE_BYTES_PER_PIXEL <
-                threadBeginBytesToAllocate)
-            {
-                if (Allocate(bufferSize, imageExtent, threadRand, threadTotalAllocatedBytes, threadAllocations) != VK_SUCCESS)
-                    break;
-            }
-            else
-                break;
-        }
-
-        // ADDITIONAL ALLOCATIONS AND FREES
-        for (size_t i = 0; i < threadAdditionalOperationCount; ++i)
-        {
-            VkDeviceSize bufferSize = 0;
-            VkExtent2D imageExtent = {};
-            GetNextAllocationSize(bufferSize, imageExtent, threadRand);
-
-            // true = allocate, false = free
-            bool allocate = threadRand.Generate() % 2 != 0;
-
-            if (allocate)
-            {
-                if (threadTotalAllocatedBytes +
-                        bufferSize +
-                        imageExtent.width * imageExtent.height * IMAGE_BYTES_PER_PIXEL <
-                    threadMaxBytesToAllocate)
-                {
-                    if (Allocate(bufferSize, imageExtent, threadRand, threadTotalAllocatedBytes, threadAllocations) != VK_SUCCESS)
-                        break;
-                }
-            }
-            else
-            {
-                bool useCommonAllocations = threadRand.Generate() % 100 < config.ThreadsUsingCommonAllocationsProbabilityPercent;
-                if (useCommonAllocations)
-                {
-                    std::unique_lock<std::mutex> lock(commonAllocationsMutex);
-                    if (!commonAllocations.empty())
-                    {
-                        size_t indexToFree = threadRand.Generate() % commonAllocations.size();
-                        VmaAllocationInfo allocationInfo;
-                        vmaGetAllocationInfo(g_hAllocator, commonAllocations[indexToFree].Alloc, &allocationInfo);
-                        if (threadTotalAllocatedBytes >= allocationInfo.size)
-                        {
-                            DeallocationTimeRegisterObj timeRegisterObj{outResult};
-                            if (commonAllocations[indexToFree].Buffer != VK_NULL_HANDLE)
-                                vmaDestroyBuffer(g_hAllocator, commonAllocations[indexToFree].Buffer, commonAllocations[indexToFree].Alloc);
-                            else
-                                vmaDestroyImage(g_hAllocator, commonAllocations[indexToFree].Image, commonAllocations[indexToFree].Alloc);
-                            threadTotalAllocatedBytes -= allocationInfo.size;
-                            commonAllocations.erase(commonAllocations.begin() + indexToFree);
-                        }
-                    }
-                }
-                else
-                {
-                    if (!threadAllocations.empty())
-                    {
-                        size_t indexToFree = threadRand.Generate() % threadAllocations.size();
-                        VmaAllocationInfo allocationInfo;
-                        vmaGetAllocationInfo(g_hAllocator, threadAllocations[indexToFree].Alloc, &allocationInfo);
-                        if (threadTotalAllocatedBytes >= allocationInfo.size)
-                        {
-                            DeallocationTimeRegisterObj timeRegisterObj{outResult};
-                            if (threadAllocations[indexToFree].Buffer != VK_NULL_HANDLE)
-                                vmaDestroyBuffer(g_hAllocator, threadAllocations[indexToFree].Buffer, threadAllocations[indexToFree].Alloc);
-                            else
-                                vmaDestroyImage(g_hAllocator, threadAllocations[indexToFree].Image, threadAllocations[indexToFree].Alloc);
-                            threadTotalAllocatedBytes -= allocationInfo.size;
-                            threadAllocations.erase(threadAllocations.begin() + indexToFree);
-                        }
-                    }
-                }
-            }
-        }
-
-        ++numThreadsReachedMaxAllocations;
-
-        WaitForSingleObject(threadsFinishEvent, INFINITE);
-
-        // DEALLOCATION
-        while (!threadAllocations.empty())
-        {
-            size_t indexToFree = 0;
-            switch (config.FreeOrder)
-            {
-            case FREE_ORDER::FORWARD:
-                indexToFree = 0;
-                break;
-            case FREE_ORDER::BACKWARD:
-                indexToFree = threadAllocations.size() - 1;
-                break;
-            case FREE_ORDER::RANDOM:
-                indexToFree = mainRand.Generate() % threadAllocations.size();
-                break;
-            }
-
-            {
-                DeallocationTimeRegisterObj timeRegisterObj{outResult};
-                if (threadAllocations[indexToFree].Buffer != VK_NULL_HANDLE)
-                    vmaDestroyBuffer(g_hAllocator, threadAllocations[indexToFree].Buffer, threadAllocations[indexToFree].Alloc);
-                else
-                    vmaDestroyImage(g_hAllocator, threadAllocations[indexToFree].Image, threadAllocations[indexToFree].Alloc);
-            }
-            threadAllocations.erase(threadAllocations.begin() + indexToFree);
-        }
-    };
+    mcrt_os_mutex_init(&threadsFinishMutex);
+    mcrt_os_cond_init(&threadsFinishCond);
+    mcrt_os_event_init(&threadsFinishCond, &threadsFinishMutex, &threadsFinishEvent, true, false);
 
     uint32_t threadRandSeed = mainRand.Generate();
-    std::vector<std::thread> bkgThreads;
+    std::vector<mcrt_native_thread_id> bkgThreads;
+    std::vector<MainTest_ThreadInitArg> bkgThreadInitArgs;
+    bkgThreads.resize(config.ThreadCount);
+    bkgThreadInitArgs.resize(config.ThreadCount);
     for (size_t i = 0; i < config.ThreadCount; ++i)
     {
-        bkgThreads.emplace_back(std::bind(ThreadProc, threadRandSeed + (uint32_t)i));
+        bkgThreadInitArgs[i]._allocationCount = &allocationCount;
+        bkgThreadInitArgs[i]._randSeed = (threadRandSeed + (uint32_t)i);
+        bkgThreadInitArgs[i]._allocationSizeProbabilitySum = allocationSizeProbabilitySum;
+        bkgThreadInitArgs[i]._memUsageProbabilitySum = memUsageProbabilitySum;
+        bkgThreadInitArgs[i]._numThreadsReachedMaxAllocations = &numThreadsReachedMaxAllocations;
+        bkgThreadInitArgs[i]._config = &config;
+        bkgThreadInitArgs[i]._commonAllocations = &commonAllocations;
+        bkgThreadInitArgs[i]._outResult = &outResult;
+        bkgThreadInitArgs[i]._mainRand = &mainRand;
+        bkgThreadInitArgs[i]._res = &res;
+        bkgThreadInitArgs[i]._commonAllocationsMutex = &commonAllocationsMutex;
+        bkgThreadInitArgs[i]._threadsFinishMutex = &threadsFinishMutex;
+        bkgThreadInitArgs[i]._threadsFinishCond = &threadsFinishCond;
+        bkgThreadInitArgs[i]._threadsFinishEvent = &threadsFinishEvent;
+
+        mcrt_native_thread_create(&bkgThreads[i], MainTest_ThreadInitAddr, &bkgThreadInitArgs[i]);
     }
 
     // Wait for threads reached max allocations
     while (numThreadsReachedMaxAllocations < config.ThreadCount)
-        Sleep(0);
+    {
+#if defined(_WIN32)
+        SwitchToThread();
+#elif defined(__linux__)
+        sched_yield();
+#else
+#error 1
+#endif
+    }
 
     // CALCULATE MEMORY STATISTICS ON FINAL USAGE
     VmaStats vmaStats = {};
@@ -649,14 +753,21 @@ VkResult MainTest(Result &outResult, const Config &config)
     outResult.FreeRangeSizeAvg = vmaStats.total.unusedRangeSizeAvg;
 
     // Signal threads to deallocate
-    SetEvent(threadsFinishEvent);
+    mcrt_os_event_set(&threadsFinishCond, &threadsFinishMutex, &threadsFinishEvent);
 
     // Wait for threads finished
     for (size_t i = 0; i < bkgThreads.size(); ++i)
-        bkgThreads[i].join();
+    {
+        mcrt_native_thread_join(bkgThreads[i]);
+    }
     bkgThreads.clear();
+    bkgThreadInitArgs.clear();
 
-    CloseHandle(threadsFinishEvent);
+    mcrt_os_mutex_destroy(&commonAllocationsMutex);
+
+    mcrt_os_event_destroy(&threadsFinishCond, &threadsFinishMutex, &threadsFinishEvent);
+    mcrt_os_cond_destroy(&threadsFinishCond);
+    mcrt_os_mutex_destroy(&threadsFinishMutex);
 
     // Deallocate remaining common resources
     while (!commonAllocations.empty())
@@ -673,6 +784,8 @@ VkResult MainTest(Result &outResult, const Config &config)
         case FREE_ORDER::RANDOM:
             indexToFree = mainRand.Generate() % commonAllocations.size();
             break;
+        case FREE_ORDER::COUNT:
+            break;
         }
 
         {
@@ -685,10 +798,11 @@ VkResult MainTest(Result &outResult, const Config &config)
         commonAllocations.erase(commonAllocations.begin() + indexToFree);
     }
 
-    if (allocationCount)
+    int64_t allocationCount_tmp = (*(&allocationCount));
+    if (allocationCount_tmp)
     {
-        outResult.AllocationTimeAvg /= allocationCount;
-        outResult.DeallocationTimeAvg /= allocationCount;
+        outResult.AllocationTimeAvg /= allocationCount_tmp;
+        outResult.DeallocationTimeAvg /= allocationCount_tmp;
     }
 
     outResult.TotalTime = std::chrono::high_resolution_clock::now() - timeBeg;
@@ -696,7 +810,7 @@ VkResult MainTest(Result &outResult, const Config &config)
     return res;
 }
 
-void SaveAllocatorStatsToFile(const wchar_t *filePath)
+void SaveAllocatorStatsToFile(const char *filePath)
 {
     wprintf(L"Saving JSON dump to file \"%s\"\n", filePath);
     char *stats;
@@ -1594,7 +1708,7 @@ void TestDefragmentationFull()
             std::vector<VkBool32> allocationsChanged(vmaAllocations.size());
 
             VmaDefragmentationInfo defragmentationInfo;
-            defragmentationInfo.maxAllocationsToMove = UINT_MAX;
+            defragmentationInfo.maxAllocationsToMove = UINT32_MAX;
             defragmentationInfo.maxBytesToMove = SIZE_MAX;
 
             wprintf(L"Defragmentation #%u\n", defragIndex);
@@ -1657,7 +1771,7 @@ static void TestDefragmentationGpu()
     // Create all intended buffers.
     for (size_t i = 0; i < bufCount; ++i)
     {
-        bufCreateInfo.size = align_up(rand.Generate() % (bufSizeMax - bufSizeMin) + bufSizeMin, 32ull);
+        bufCreateInfo.size = align_up((long long unsigned)rand.Generate() % (bufSizeMax - bufSizeMin) + bufSizeMin, 32ull);
 
         if (rand.Generate() % 100 < percentNonMovable)
         {
@@ -1696,8 +1810,8 @@ static void TestDefragmentationGpu()
     // Fill them with meaningful data.
     UploadGpuData(allocations.data(), allocations.size());
 
-    wchar_t fileName[MAX_PATH];
-    swprintf_s(fileName, L"GPU_defragmentation_A_before.json");
+    char fileName[MAX_PATH];
+    snprintf(fileName, MAX_PATH, "GPU_defragmentation_A_before.json");
     SaveAllocatorStatsToFile(fileName);
 
     // Defragment using GPU only.
@@ -1761,7 +1875,7 @@ static void TestDefragmentationGpu()
 
     ValidateGpuData(allocations.data(), allocations.size());
 
-    swprintf_s(fileName, L"GPU_defragmentation_B_after.json");
+    snprintf(fileName, MAX_PATH, "GPU_defragmentation_B_after.json");
     SaveAllocatorStatsToFile(fileName);
 
     // Destroy all remaining buffers.
@@ -1819,7 +1933,7 @@ static void TestUserData()
             const size_t name1Len = strlen(name1);
 
             char *name1Buf = new char[name1Len + 1];
-            strcpy_s(name1Buf, name1Len + 1, name1);
+            strncpy(name1Buf, name1, name1Len + 1);
 
             VmaAllocationCreateInfo allocCreateInfo = {};
             allocCreateInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
@@ -3668,8 +3782,13 @@ static void TestPool_Benchmark(
     auto ThreadProc = [&](
                           PoolTestThreadResult *outThreadResult,
                           uint32_t randSeed,
-                          HANDLE frameStartEvent,
-                          HANDLE frameEndEvent) -> void {
+                          mcrt_cond_t *frameStartCond,
+                          mcrt_mutex_t *frameStartMutex,
+                          mcrt_event_t *frameStartEvent,
+                          mcrt_cond_t *frameEndCond,
+                          mcrt_mutex_t *frameEndMutex,
+                          mcrt_event_t *frameEndEvent)
+        -> void {
         RandomNumberGenerator threadRand{randSeed};
 
         outThreadResult->AllocationTimeMin = duration::max();
@@ -3768,7 +3887,7 @@ static void TestPool_Benchmark(
         // Frames
         for (uint32_t frameIndex = 0; frameIndex < config.FrameCount; ++frameIndex)
         {
-            WaitForSingleObject(frameStartEvent, INFINITE);
+            mcrt_os_event_wait_one(frameStartCond, frameStartMutex, frameStartEvent);
 
             // Always make some percent of used bufs unused, to choose different used ones.
             const size_t bufsToMakeUnused = usedItems.size() * config.ItemsToMakeUnusedPercent / 100;
@@ -3871,8 +3990,7 @@ static void TestPool_Benchmark(
                 touchExistingCount, touchLostCount,
                 createSucceededCount, createFailedCount);
             */
-
-            SetEvent(frameEndEvent);
+            mcrt_os_event_set(frameEndCond, frameEndMutex, frameEndEvent);
         }
 
         // Free all remaining items.
@@ -3898,39 +4016,70 @@ static void TestPool_Benchmark(
 
     // Launch threads.
     uint32_t threadRandSeed = mainRand.Generate();
-    std::vector<HANDLE> frameStartEvents{config.ThreadCount};
-    std::vector<HANDLE> frameEndEvents{config.ThreadCount};
+
+    std::vector<mcrt_cond_t> frameStartConds{config.ThreadCount};
+    std::vector<mcrt_mutex_t> frameStartMutexs{config.ThreadCount};
+    std::vector<mcrt_event_t> frameStartEvents{config.ThreadCount};
+    std::vector<mcrt_event_t *> frameStartEventPonters{config.ThreadCount};
+
+    mcrt_cond_t frameEndCond;
+    mcrt_mutex_t frameEndMutex;
+    std::vector<mcrt_event_t> frameEndEvents{config.ThreadCount};
+
     std::vector<std::thread> bkgThreads;
     std::vector<PoolTestThreadResult> threadResults{config.ThreadCount};
+
+    mcrt_os_cond_init(&frameEndCond);
+    mcrt_os_mutex_init(&frameEndMutex);
+
     for (uint32_t threadIndex = 0; threadIndex < config.ThreadCount; ++threadIndex)
     {
-        frameStartEvents[threadIndex] = CreateEvent(NULL, FALSE, FALSE, NULL);
-        frameEndEvents[threadIndex] = CreateEvent(NULL, FALSE, FALSE, NULL);
+        mcrt_os_cond_init(&frameStartConds[threadIndex]);
+        mcrt_os_mutex_init(&frameStartMutexs[threadIndex]);
+        mcrt_os_event_init(&frameStartConds[threadIndex], &frameStartMutexs[threadIndex], &frameStartEvents[threadIndex], false, false);
+
+        mcrt_os_event_init(&frameEndCond, &frameEndMutex, &frameEndEvents[threadIndex], false, false);
+        frameStartEventPonters[threadIndex] = &frameEndEvents[threadIndex];
+
         bkgThreads.emplace_back(std::bind(
             ThreadProc,
             &threadResults[threadIndex],
             threadRandSeed + threadIndex,
-            frameStartEvents[threadIndex],
-            frameEndEvents[threadIndex]));
+            &frameStartConds[threadIndex],
+            &frameStartMutexs[threadIndex],
+            &frameStartEvents[threadIndex],
+            &frameEndCond,
+            &frameEndMutex,
+            &frameEndEvents[threadIndex]));
     }
 
     // Execute frames.
-    TEST(config.ThreadCount <= MAXIMUM_WAIT_OBJECTS);
     for (uint32_t frameIndex = 0; frameIndex < config.FrameCount; ++frameIndex)
     {
         vmaSetCurrentFrameIndex(g_hAllocator, frameIndex);
+
         for (size_t threadIndex = 0; threadIndex < config.ThreadCount; ++threadIndex)
-            SetEvent(frameStartEvents[threadIndex]);
-        WaitForMultipleObjects(config.ThreadCount, &frameEndEvents[0], TRUE, INFINITE);
+        {
+            mcrt_os_event_set(&frameStartConds[threadIndex], &frameStartMutexs[threadIndex], &frameStartEvents[threadIndex]);
+        }
+
+        mcrt_os_event_wait_multiple(&frameEndCond, &frameEndMutex, &frameStartEventPonters[0], config.ThreadCount, true);
     }
 
     // Wait for threads finished
     for (size_t i = 0; i < bkgThreads.size(); ++i)
     {
         bkgThreads[i].join();
-        CloseHandle(frameEndEvents[i]);
-        CloseHandle(frameStartEvents[i]);
+
+        mcrt_os_event_destroy(&frameStartConds[i], &frameStartMutexs[i], &frameStartEvents[i]);
+        mcrt_os_cond_destroy(&frameStartConds[i]);
+        mcrt_os_mutex_destroy(&frameStartMutexs[i]);
+
+        mcrt_os_event_destroy(&frameEndCond, &frameEndMutex, &frameEndEvents[i]);
     }
+    mcrt_os_cond_destroy(&frameEndCond);
+    mcrt_os_mutex_destroy(&frameEndMutex);
+
     bkgThreads.clear();
 
     // Finish time measurement - before destroying pool.
@@ -4426,6 +4575,17 @@ static void TestDeviceLocalMapped()
     }
 }
 
+struct TestMappingMultithreaded_ThreadInitArg
+{
+    uint32_t _threadIndex;
+    uint32_t _threadBufferCount;
+    VkBufferCreateInfo const *_bufCreateInfo;
+    VmaAllocationCreateInfo const *_allocCreateInfo;
+    uint32_t volatile *_memTypeIndex;
+};
+
+static void *TestMappingMultithreaded_ThreadInitAddr(void *arg);
+
 static void TestMappingMultithreaded()
 {
     wprintf(L"Testing mapping multithreaded...\n");
@@ -4466,131 +4626,166 @@ static void TestMappingMultithreaded()
         if (testIndex == TEST_DEDICATED)
             allocCreateInfo.flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
 
-        std::thread threads[threadCount];
+        mcrt_native_thread_id threads[threadCount];
+        struct TestMappingMultithreaded_ThreadInitArg threadInitArgs[threadCount];
         for (uint32_t threadIndex = 0; threadIndex < threadCount; ++threadIndex)
         {
-            threads[threadIndex] = std::thread([=, &memTypeIndex]() {
-                // ======== THREAD FUNCTION ========
-
-                RandomNumberGenerator rand{threadIndex};
-
-                enum class MODE
-                {
-                    // Don't map this buffer at all.
-                    DONT_MAP,
-                    // Map and quickly unmap.
-                    MAP_FOR_MOMENT,
-                    // Map and unmap before destruction.
-                    MAP_FOR_LONGER,
-                    // Map two times. Quickly unmap, second unmap before destruction.
-                    MAP_TWO_TIMES,
-                    // Create this buffer as persistently mapped.
-                    PERSISTENTLY_MAPPED,
-                    COUNT
-                };
-                std::vector<BufferInfo> bufInfos{threadBufferCount};
-                std::vector<MODE> bufModes{threadBufferCount};
-
-                for (uint32_t bufferIndex = 0; bufferIndex < threadBufferCount; ++bufferIndex)
-                {
-                    BufferInfo &bufInfo = bufInfos[bufferIndex];
-                    const MODE mode = (MODE)(rand.Generate() % (uint32_t)MODE::COUNT);
-                    bufModes[bufferIndex] = mode;
-
-                    VmaAllocationCreateInfo localAllocCreateInfo = allocCreateInfo;
-                    if (mode == MODE::PERSISTENTLY_MAPPED)
-                        localAllocCreateInfo.flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
-
-                    VmaAllocationInfo allocInfo;
-                    VkResult res = vmaCreateBuffer(g_hAllocator, &bufCreateInfo, &localAllocCreateInfo,
-                                                   &bufInfo.Buffer, &bufInfo.Allocation, &allocInfo);
-                    TEST(res == VK_SUCCESS);
-
-                    if (memTypeIndex == UINT32_MAX)
-                        memTypeIndex = allocInfo.memoryType;
-
-                    char *data = nullptr;
-
-                    if (mode == MODE::PERSISTENTLY_MAPPED)
-                    {
-                        data = (char *)allocInfo.pMappedData;
-                        TEST(data != nullptr);
-                    }
-                    else if (mode == MODE::MAP_FOR_MOMENT || mode == MODE::MAP_FOR_LONGER ||
-                             mode == MODE::MAP_TWO_TIMES)
-                    {
-                        TEST(data == nullptr);
-                        res = vmaMapMemory(g_hAllocator, bufInfo.Allocation, (void **)&data);
-                        TEST(res == VK_SUCCESS && data != nullptr);
-
-                        if (mode == MODE::MAP_TWO_TIMES)
-                        {
-                            char *data2 = nullptr;
-                            res = vmaMapMemory(g_hAllocator, bufInfo.Allocation, (void **)&data2);
-                            TEST(res == VK_SUCCESS && data2 == data);
-                        }
-                    }
-                    else if (mode == MODE::DONT_MAP)
-                    {
-                        TEST(allocInfo.pMappedData == nullptr);
-                    }
-                    else
-                        TEST(0);
-
-                    // Test if reading and writing from the beginning and end of mapped memory doesn't crash.
-                    if (data)
-                        data[0xFFFF] = data[0];
-
-                    if (mode == MODE::MAP_FOR_MOMENT || mode == MODE::MAP_TWO_TIMES)
-                    {
-                        vmaUnmapMemory(g_hAllocator, bufInfo.Allocation);
-
-                        VmaAllocationInfo allocInfo;
-                        vmaGetAllocationInfo(g_hAllocator, bufInfo.Allocation, &allocInfo);
-                        if (mode == MODE::MAP_FOR_MOMENT)
-                            TEST(allocInfo.pMappedData == nullptr);
-                        else
-                            TEST(allocInfo.pMappedData == data);
-                    }
-
-                    switch (rand.Generate() % 3)
-                    {
-                    case 0:
-                        Sleep(0);
-                        break; // Yield.
-                    case 1:
-                        Sleep(10);
-                        break; // 10 ms
-                        // default: No sleep.
-                    }
-
-                    // Test if reading and writing from the beginning and end of mapped memory doesn't crash.
-                    if (data)
-                        data[0xFFFF] = data[0];
-                }
-
-                for (size_t bufferIndex = threadBufferCount; bufferIndex--;)
-                {
-                    if (bufModes[bufferIndex] == MODE::MAP_FOR_LONGER ||
-                        bufModes[bufferIndex] == MODE::MAP_TWO_TIMES)
-                    {
-                        vmaUnmapMemory(g_hAllocator, bufInfos[bufferIndex].Allocation);
-
-                        VmaAllocationInfo allocInfo;
-                        vmaGetAllocationInfo(g_hAllocator, bufInfos[bufferIndex].Allocation, &allocInfo);
-                        TEST(allocInfo.pMappedData == nullptr);
-                    }
-
-                    vmaDestroyBuffer(g_hAllocator, bufInfos[bufferIndex].Buffer, bufInfos[bufferIndex].Allocation);
-                }
-            });
+            threadInitArgs[threadIndex]._threadIndex = threadIndex;
+            threadInitArgs[threadIndex]._threadBufferCount = threadBufferCount;
+            threadInitArgs[threadIndex]._bufCreateInfo = &bufCreateInfo;
+            threadInitArgs[threadIndex]._allocCreateInfo = &allocCreateInfo;
+            threadInitArgs[threadIndex]._memTypeIndex = &memTypeIndex;
+            TEST(mcrt_native_thread_create(&threads[threadIndex], TestMappingMultithreaded_ThreadInitAddr, &threadInitArgs[threadIndex]));
         }
-
         for (uint32_t threadIndex = 0; threadIndex < threadCount; ++threadIndex)
-            threads[threadIndex].join();
+        {
+            TEST(mcrt_native_thread_join(threads[threadIndex]));
+        }
 
         vmaDestroyPool(g_hAllocator, pool);
     }
+}
+
+static void *TestMappingMultithreaded_ThreadInitAddr(void *arg)
+{
+    uint32_t threadIndex = static_cast<struct TestMappingMultithreaded_ThreadInitArg *>(arg)->_threadIndex;
+    uint32_t threadBufferCount = static_cast<struct TestMappingMultithreaded_ThreadInitArg *>(arg)->_threadBufferCount;
+    VkBufferCreateInfo const &bufCreateInfo = (*static_cast<struct TestMappingMultithreaded_ThreadInitArg *>(arg)->_bufCreateInfo);
+    VmaAllocationCreateInfo const &allocCreateInfo = (*static_cast<struct TestMappingMultithreaded_ThreadInitArg *>(arg)->_allocCreateInfo);
+    uint32_t volatile &memTypeIndex = (*static_cast<struct TestMappingMultithreaded_ThreadInitArg *>(arg)->_memTypeIndex);
+
+    // ======== THREAD FUNCTION ========
+
+    RandomNumberGenerator rand{threadIndex};
+
+    enum class MODE
+    {
+        // Don't map this buffer at all.
+        DONT_MAP,
+        // Map and quickly unmap.
+        MAP_FOR_MOMENT,
+        // Map and unmap before destruction.
+        MAP_FOR_LONGER,
+        // Map two times. Quickly unmap, second unmap before destruction.
+        MAP_TWO_TIMES,
+        // Create this buffer as persistently mapped.
+        PERSISTENTLY_MAPPED,
+        COUNT
+    };
+    std::vector<BufferInfo> bufInfos{threadBufferCount};
+    std::vector<MODE> bufModes{threadBufferCount};
+
+    for (uint32_t bufferIndex = 0; bufferIndex < threadBufferCount; ++bufferIndex)
+    {
+        BufferInfo &bufInfo = bufInfos[bufferIndex];
+        const MODE mode = (MODE)(rand.Generate() % (uint32_t)MODE::COUNT);
+        bufModes[bufferIndex] = mode;
+
+        VmaAllocationCreateInfo localAllocCreateInfo = allocCreateInfo;
+        if (mode == MODE::PERSISTENTLY_MAPPED)
+            localAllocCreateInfo.flags |= VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+        VmaAllocationInfo allocInfo;
+        VkResult res = vmaCreateBuffer(g_hAllocator, &bufCreateInfo, &localAllocCreateInfo,
+                                       &bufInfo.Buffer, &bufInfo.Allocation, &allocInfo);
+        TEST(res == VK_SUCCESS);
+
+        if (memTypeIndex == UINT32_MAX)
+            memTypeIndex = allocInfo.memoryType;
+
+        char *data = nullptr;
+
+        if (mode == MODE::PERSISTENTLY_MAPPED)
+        {
+            data = (char *)allocInfo.pMappedData;
+            TEST(data != nullptr);
+        }
+        else if (mode == MODE::MAP_FOR_MOMENT || mode == MODE::MAP_FOR_LONGER ||
+                 mode == MODE::MAP_TWO_TIMES)
+        {
+            TEST(data == nullptr);
+            res = vmaMapMemory(g_hAllocator, bufInfo.Allocation, (void **)&data);
+            TEST(res == VK_SUCCESS && data != nullptr);
+
+            if (mode == MODE::MAP_TWO_TIMES)
+            {
+                char *data2 = nullptr;
+                res = vmaMapMemory(g_hAllocator, bufInfo.Allocation, (void **)&data2);
+                TEST(res == VK_SUCCESS && data2 == data);
+            }
+        }
+        else if (mode == MODE::DONT_MAP)
+        {
+            TEST(allocInfo.pMappedData == nullptr);
+        }
+        else
+            TEST(0);
+
+        // Test if reading and writing from the beginning and end of mapped memory doesn't crash.
+        if (data)
+            data[0xFFFF] = data[0];
+
+        if (mode == MODE::MAP_FOR_MOMENT || mode == MODE::MAP_TWO_TIMES)
+        {
+            vmaUnmapMemory(g_hAllocator, bufInfo.Allocation);
+
+            VmaAllocationInfo allocInfo;
+            vmaGetAllocationInfo(g_hAllocator, bufInfo.Allocation, &allocInfo);
+            if (mode == MODE::MAP_FOR_MOMENT)
+                TEST(allocInfo.pMappedData == nullptr);
+            else
+                TEST(allocInfo.pMappedData == data);
+        }
+
+        switch (rand.Generate() % 3)
+        {
+        case 0:
+#if defined(_WIN32)
+            SwitchToThread();
+#elif defined(__linux__)
+            sched_yield();
+#else
+#error 1
+#endif
+            break; // Yield.
+        case 1:
+#if defined(_WIN32)
+            Sleep(10);
+#elif defined(__linux__)
+        {
+            struct timespec req;
+            req.tv_sec = 0;
+            req.tv_nsec = 1000 * 10;
+            nanosleep(&req, NULL);
+        }
+#else
+#error 1
+#endif
+            break; // 10 ms
+            // default: No sleep.
+        }
+
+        // Test if reading and writing from the beginning and end of mapped memory doesn't crash.
+        if (data)
+            data[0xFFFF] = data[0];
+    }
+
+    for (size_t bufferIndex = threadBufferCount; bufferIndex--;)
+    {
+        if (bufModes[bufferIndex] == MODE::MAP_FOR_LONGER ||
+            bufModes[bufferIndex] == MODE::MAP_TWO_TIMES)
+        {
+            vmaUnmapMemory(g_hAllocator, bufInfos[bufferIndex].Allocation);
+
+            VmaAllocationInfo allocInfo;
+            vmaGetAllocationInfo(g_hAllocator, bufInfos[bufferIndex].Allocation, &allocInfo);
+            TEST(allocInfo.pMappedData == nullptr);
+        }
+
+        vmaDestroyBuffer(g_hAllocator, bufInfos[bufferIndex].Buffer, bufInfos[bufferIndex].Allocation);
+    }
+
+    return NULL;
 }
 
 static void WriteMainTestResultHeader(FILE *file)
@@ -4629,7 +4824,7 @@ static void WriteMainTestResult(
 
     fprintf(file,
             "%s,%s,%s,"
-            "%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%I64u,%I64u,%I64u\n",
+            "%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%" PRId64 ",%" PRId64 ",%" PRId64 "\n",
             codeDescription,
             currTime.c_str(),
             testDescription,
@@ -4684,7 +4879,7 @@ static void WritePoolTestResult(
     fprintf(file,
             "%s,%s,%s,"
             "ThreadCount=%u PoolSize=%llu FrameCount=%u TotalItemCount=%u UsedItemCount=%u...%u ItemsToMakeUnusedPercent=%u,"
-            "%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%I64u,%I64u,%I64u,%I64u\n",
+            "%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%.2f,%zu,%zu,%zu,%zu\n",
             // General
             codeDescription,
             testDescription,
@@ -5439,7 +5634,7 @@ static void BasicTestBuddyAllocator()
         bufInfo.push_back(newBufInfo);
     }
 
-    SaveAllocatorStatsToFile(L"BuddyTest01.json");
+    SaveAllocatorStatsToFile("BuddyTest01.json");
 
     // Destroy the buffers in random order.
     while (!bufInfo.empty())
@@ -5585,72 +5780,75 @@ static void TestGpuData()
     DestroyAllAllocations(allocInfo);
 }
 
+static int32_t g_is_testing;
+
 void Test()
 {
-    wprintf(L"TESTING:\n");
-
-    if (false)
+    if (mcrt_atomic_xchg_i32(&g_is_testing, 1) == 0)
     {
-        ////////////////////////////////////////////////////////////////////////////////
-        // Temporarily insert custom tests here:
-        return;
-    }
+        wprintf(L"TESTING:\n");
 
-    // # Simple tests
+        if (false)
+        {
+            ////////////////////////////////////////////////////////////////////////////////
+            // Temporarily insert custom tests here:
+            return;
+        }
 
-    TestBasics();
-    //TestGpuData(); // Not calling this because it's just testing the testing environment.
+        // # Simple tests
+
+        TestBasics();
+        //TestGpuData(); // Not calling this because it's just testing the testing environment.
 #if VMA_DEBUG_MARGIN
-    TestDebugMargin();
+        TestDebugMargin();
 #else
-    TestPool_SameSize();
-    TestPool_MinBlockCount();
-    TestHeapSizeLimit();
+        TestPool_SameSize();
+        TestPool_MinBlockCount();
+        TestHeapSizeLimit();
 #endif
 #if VMA_DEBUG_INITIALIZE_ALLOCATIONS
-    TestAllocationsInitialization();
+        TestAllocationsInitialization();
 #endif
-    TestMemoryUsage();
-    TestBudget();
-    TestMapping();
-    TestDeviceLocalMapped();
-    TestMappingMultithreaded();
-    TestLinearAllocator();
-    ManuallyTestLinearAllocator();
-    TestLinearAllocatorMultiBlock();
+        TestMemoryUsage();
+        TestBudget();
+        TestMapping();
+        TestDeviceLocalMapped();
+        TestMappingMultithreaded();
+        TestLinearAllocator();
+        ManuallyTestLinearAllocator();
+        TestLinearAllocatorMultiBlock();
 
-    BasicTestBuddyAllocator();
-    BasicTestAllocatePages();
+        BasicTestBuddyAllocator();
+        BasicTestAllocatePages();
 
-    {
-        FILE *file;
-        fopen_s(&file, "Algorithms.csv", "w");
+        {
+            FILE *file = fopen("Algorithms.csv", "w");
+            assert(file != NULL);
+            BenchmarkAlgorithms(file);
+            fclose(file);
+        }
+
+        TestDefragmentationSimple();
+        TestDefragmentationFull();
+        TestDefragmentationWholePool();
+        TestDefragmentationGpu();
+
+        // # Detailed tests
+        FILE *file = fopen("Results.csv", "w");
         assert(file != NULL);
-        BenchmarkAlgorithms(file);
+
+        WriteMainTestResultHeader(file);
+        PerformMainTests(file);
+        //PerformCustomMainTest(file);
+
+        WritePoolTestResultHeader(file);
+        PerformPoolTests(file);
+        //PerformCustomPoolTest(file);
+
         fclose(file);
+
+        wprintf(L"Done.\n");
+
+        mcrt_atomic_xchg_i32(&g_is_testing, 0);
     }
-
-    TestDefragmentationSimple();
-    TestDefragmentationFull();
-    TestDefragmentationWholePool();
-    TestDefragmentationGpu();
-
-    // # Detailed tests
-    FILE *file;
-    fopen_s(&file, "Results.csv", "w");
-    assert(file != NULL);
-
-    WriteMainTestResultHeader(file);
-    PerformMainTests(file);
-    //PerformCustomMainTest(file);
-
-    WritePoolTestResultHeader(file);
-    PerformPoolTests(file);
-    //PerformCustomPoolTest(file);
-
-    fclose(file);
-
-    wprintf(L"Done.\n");
 }
-
-#endif // #ifdef _WIN32

@@ -22,8 +22,6 @@
 
 #include "Common.h"
 
-#ifdef _WIN32
-
 void ReadFile(std::vector<char> &out, const char *fileName)
 {
     std::ifstream file(fileName, std::ios::ate | std::ios::binary);
@@ -39,6 +37,19 @@ void ReadFile(std::vector<char> &out, const char *fileName)
         out.clear();
 }
 
+void SaveFile(const char *filePath, const void *data, size_t dataSize)
+{
+    FILE *f = fopen(filePath, "wb");
+    if (f)
+    {
+        fwrite(data, 1, dataSize, f);
+        fclose(f);
+    }
+    else
+        assert(0);
+}
+
+#if defined(_WIN32)
 void SetConsoleColor(CONSOLE_COLOR color)
 {
     WORD attr = 0;
@@ -165,17 +176,16 @@ void PrintErrorF(const wchar_t *format, ...)
     va_end(argList);
 }
 
-void SaveFile(const wchar_t *filePath, const void *data, size_t dataSize)
+#elif defined(__linux__)
+void SetConsoleColor(CONSOLE_COLOR color)
 {
-    FILE *f = nullptr;
-    _wfopen_s(&f, filePath, L"wb");
-    if (f)
-    {
-        fwrite(data, 1, dataSize, f);
-        fclose(f);
-    }
-    else
-        assert(0);
 }
 
-#endif // #ifdef _WIN32
+void PrintMessage(CONSOLE_COLOR color, const wchar_t *msg)
+{
+    wprintf(L"%s\n", msg);
+}
+
+#else
+#error 1
+#endif

@@ -23,20 +23,23 @@
 #ifndef VMA_USAGE_H_
 #define VMA_USAGE_H_
 
-#ifdef _WIN32
+#if defined(_WIN32)
 
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include <Windows.h>
 #define VK_USE_PLATFORM_WIN32_KHR
 
-#else // #ifdef _WIN32
+#elif defined(__linux__)
 
+#define VK_USE_PLATFORM_XCB_KHR
 #include <vulkan/vulkan.h>
 
-#endif // #ifdef _WIN32
+#else
+#error Unknown Platform
+#endif
 
-#ifdef _MSVC_LANG
+#if defined(_MSC_VER)
 
 // Uncomment to test including `vulkan.h` on your own before including VMA.
 //#include <vulkan/vulkan.h>
@@ -75,23 +78,12 @@ include all public interface declarations. Example:
 #pragma warning(disable : 4189) // local variable is initialized but not referenced
 #pragma warning(disable : 4324) // structure was padded due to alignment specifier
 
-#endif // #ifdef _MSVC_LANG
-
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wtautological-compare" // comparison of unsigned expression < 0 is always false
-#pragma clang diagnostic ignored "-Wunused-private-field"
-#pragma clang diagnostic ignored "-Wunused-parameter"
-#pragma clang diagnostic ignored "-Wmissing-field-initializers"
 #endif
 
+#define VMA_VULKAN_VERSION 1000000
 #include "vk_mem_alloc.h"
 
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-
-#ifdef _MSVC_LANG
+#if defined(_MSC_VER)
 #pragma warning(pop)
 #endif
 

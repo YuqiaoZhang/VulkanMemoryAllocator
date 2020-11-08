@@ -4,23 +4,10 @@ _SUFFIX = _ACTION
 
 workspace "VulkanSample"
 configurations { "Debug", "Release" }
-platforms { "x64", "Linux-x64" }
+platforms { "Windows-x64", "Linux-x64" }
 location "../build"
 filename ("VulkanSample_" .. _SUFFIX)
 startproject "VulkanSample"
-
-filter "platforms:x64"
-system "Windows"
-architecture "x64"
-includedirs { "$(VULKAN_SDK)/Include" }
-libdirs { "$(VULKAN_SDK)/Lib" }
-
-filter "platforms:Linux-x64"
-system "Linux"
-architecture "x64"
-includedirs { "$(VULKAN_SDK)/include" }
-libdirs { "$(VULKAN_SDK)/lib" }
-
 
 project "VulkanSample"
 kind "ConsoleApp"
@@ -31,34 +18,44 @@ targetdir "../bin"
 objdir "../build/Desktop_%{_SUFFIX}/%{cfg.platform}/%{cfg.buildcfg}"
 floatingpoint "Fast"
 files { "../src/*.h", "../src/*.cpp" }
-flags { "NoPCH", "FatalWarnings" }
-characterset "Unicode"
 
-filter "configurations:Debug"
+filter {"configurations:Debug"}
 defines { "_DEBUG", "DEBUG" }
-flags { }
+symbols "On"
+optimize "Off"
 targetsuffix ("_Debug_" .. _SUFFIX)
 
-filter "configurations:Release"
+filter {"configurations:Release"}
 defines { "NDEBUG" }
 optimize "On"
 flags { "LinkTimeOptimization" }
 targetsuffix ("_Release_" .. _SUFFIX)
 
-filter { "platforms:x64" }
+filter { "platforms:Windows-x64" }
+flags { "NoPCH", "FatalWarnings" }
+-- includedirs { "$(VULKAN_SDK)/Include" }
+-- libdirs { "$(VULKAN_SDK)/Lib" }
+buildoptions { "-I$(VULKAN_SDK)/Include" }
+linkoptions { "-L$(VULKAN_SDK)/Lib" }
+characterset "Unicode"
+
+filter { "platforms:Windows-x64" }
 defines { "WIN32", "_CONSOLE", "PROFILE", "_WINDOWS", "_WIN32_WINNT=0x0601" }
 links { "vulkan-1" }
 
-filter { "platforms:Linux-x64" }
-buildoptions { "-std=c++0x" }
-links { "vulkan" }
-
-filter { "configurations:Debug", "platforms:x64" }
+filter { "configurations:Debug", "platforms:Windows-x64" }
 buildoptions { "/MDd" }
 
 filter { "configurations:Release", "platforms:Windows-x64" }
 buildoptions { "/MD" }
 
+filter { "platforms:Linux-x64" }
+buildoptions { "-pthread", "-fPIC", "-fPIE", "-std=c++0x" }
+linkoptions { "-pthread", "-pie" }
+links { "xcb", "vulkan" }
+
+-- filter { "configurations:Debug", "platforms:Linux-x64" }
+-- buildoptions { "-g2", "-gdwarf-2", "-O0", "-fno-omit-frame-pointer" }
 
 project "VmaReplay"
 removeplatforms { "Linux-x64" }
@@ -92,7 +89,7 @@ filter { "platforms:Linux-x64" }
 buildoptions { "-std=c++0x" }
 links { "vulkan" }
 
-filter { "configurations:Debug", "platforms:x64" }
+filter { "configurations:Debug", "platforms:Windows-x64" }
 buildoptions { "/MDd" }
 
 filter { "configurations:Release", "platforms:Windows-x64" }

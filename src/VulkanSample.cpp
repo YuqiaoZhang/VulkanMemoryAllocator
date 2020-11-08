@@ -20,18 +20,23 @@
 // THE SOFTWARE.
 //
 
-#ifdef _WIN32
-
 #include "SparseBindingTest.h"
 #include "Tests.h"
 #include "VmaUsage.h"
 #include "Common.h"
 #include <atomic>
+#include <float.h>
 
 static const char *const SHADER_PATH1 = "./";
 static const char *const SHADER_PATH2 = "../bin/";
 static const wchar_t *const WINDOW_CLASS_NAME = L"VULKAN_MEMORY_ALLOCATOR_SAMPLE";
+#if defined(_WIN32)
 static const char *const VALIDATION_LAYER_NAME = "VK_LAYER_LUNARG_standard_validation";
+#elif defined(__linux__)
+static const char *const VALIDATION_LAYER_NAME = "VK_LAYER_KHRONOS_validation";
+#else
+#error 1
+#endif
 static const char *const APP_TITLE_A = "Vulkan Memory Allocator Sample 2.3.0";
 static const wchar_t *const APP_TITLE_W = L"Vulkan Memory Allocator Sample 2.3.0";
 
@@ -54,9 +59,19 @@ static bool VK_KHR_bind_memory2_enabled = false;
 static bool VK_EXT_memory_budget_enabled = false;
 bool g_SparseBindingEnabled = false;
 
+#if defined(_WIN32)
 static HINSTANCE g_hAppInstance;
 static HWND g_hWnd;
-static LONG g_SizeX = 1280, g_SizeY = 720;
+#elif defined(__linux__)
+static xcb_connection_t *g_hAppInstance;
+static xcb_window_t g_hWnd;
+static xcb_screen_t *g_screen;
+static xcb_atom_t g_atom_wm_delete_window;
+static bool g_loop_quit;
+#endif
+
+static uint32_t g_SizeX = 1280;
+static uint32_t g_SizeY = 720;
 static VkSurfaceKHR g_hSurface;
 static VkQueue g_hPresentQueue;
 static VkSurfaceFormatKHR g_SurfaceFormat;
@@ -72,9 +87,9 @@ VkFence g_ImmediateFence;
 static uint32_t g_NextCommandBufferIndex;
 static VkSemaphore g_hImageAvailableSemaphore;
 static VkSemaphore g_hRenderFinishedSemaphore;
-static uint32_t g_GraphicsQueueFamilyIndex = UINT_MAX;
-static uint32_t g_PresentQueueFamilyIndex = UINT_MAX;
-static uint32_t g_SparseBindingQueueFamilyIndex = UINT_MAX;
+static uint32_t g_GraphicsQueueFamilyIndex = UINT32_MAX;
+static uint32_t g_PresentQueueFamilyIndex = UINT32_MAX;
+static uint32_t g_SparseBindingQueueFamilyIndex = UINT32_MAX;
 static VkDescriptorSetLayout g_hDescriptorSetLayout;
 static VkDescriptorPool g_hDescriptorPool;
 static VkDescriptorSet g_hDescriptorSet; // Automatically destroyed with m_DescriptorPool.
@@ -114,6 +129,7 @@ static VkImageView g_hTextureImageView;
 
 static std::atomic_uint32_t g_CpuAllocCount;
 
+#if defined(_WIN32)
 static void *CustomCpuAllocation(
     void *pUserData, size_t size, size_t alignment,
     VkSystemAllocationScope allocationScope)
@@ -154,6 +170,69 @@ static void CustomCpuFree(void *pUserData, void *pMemory)
         _aligned_free(pMemory);
     }
 }
+#elif defined(__linux__)
+static void *CustomCpuAllocation(void *pUserData, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
+{
+    assert(pUserData == CUSTOM_CPU_ALLOCATION_CALLBACK_USER_DATA);
+
+    void *result = aligned_alloc(alignment, size);
+    if (result)
+    {
+        ++g_CpuAllocCount;
+    }
+    return result;
+}
+
+static void CustomCpuFree(void *pUserData, void *pMemory)
+{
+    assert(pUserData == CUSTOM_CPU_ALLOCATION_CALLBACK_USER_DATA);
+
+    if (pMemory)
+    {
+        const uint32_t oldAllocCount = g_CpuAllocCount.fetch_sub(1);
+        TEST(oldAllocCount > 0);
+
+        free(pMemory);
+    }
+}
+
+static void *CustomCpuReallocation(void *pUserData, void *pOriginal, size_t size, size_t alignment, VkSystemAllocationScope allocationScope)
+{
+    assert(pUserData == CUSTOM_CPU_ALLOCATION_CALLBACK_USER_DATA);
+
+    if (pOriginal != NULL && size > 0U)
+    {
+        void *result = aligned_alloc(alignment, size);
+        memcpy(result, pOriginal, size); // shall we use the original size ?
+        free(pOriginal);
+
+        if (!result)
+        {
+            --g_CpuAllocCount;
+        }
+        return result;
+    }
+    else if (size > 0U)
+    {
+        assert(pOriginal == NULL);
+        return CustomCpuAllocation(pUserData, size, alignment, allocationScope);
+    }
+    else if (pOriginal != NULL)
+    {
+        assert(size == 0U);
+        CustomCpuFree(pUserData, pOriginal);
+        return NULL;
+    }
+    else
+    {
+        assert(pOriginal == NULL);
+        assert(size == 0U);
+        return NULL;
+    }
+}
+#else
+#error 1
+#endif
 
 static const VkAllocationCallbacks g_CpuAllocationCallbacks = {
     CUSTOM_CPU_ALLOCATION_CALLBACK_USER_DATA, // pUserData
@@ -242,28 +321,34 @@ VKAPI_ATTR VkBool32 VKAPI_CALL MyDebugReportCallback(
         return VK_FALSE;
     }
 
+    char msg[4096];
+
     switch (flags)
     {
     case VK_DEBUG_REPORT_WARNING_BIT_EXT:
-        SetConsoleColor(CONSOLE_COLOR::WARNING);
+        snprintf(msg, 4096, "WARNING: [%s] Code %d : %s\n", pLayerPrefix, messageCode, pMessage);
+        break;
+    case VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT:
+        snprintf(msg, 4096, "PERFORMANCE WARNING: [%s] Code %d : %s\n", pLayerPrefix, messageCode, pMessage);
         break;
     case VK_DEBUG_REPORT_ERROR_BIT_EXT:
-        SetConsoleColor(CONSOLE_COLOR::ERROR_);
+        snprintf(msg, 4096, "ERROR: [%s] Code %d : %s\n", pLayerPrefix, messageCode, pMessage);
         break;
+    case VK_DEBUG_REPORT_DEBUG_BIT_EXT:
+        snprintf(msg, 4096, "DEBUG: [%s] Code %d : %s\n", pLayerPrefix, messageCode, pMessage);
+        break;
+    case VK_DEBUG_REPORT_INFORMATION_BIT_EXT:
     default:
-        SetConsoleColor(CONSOLE_COLOR::INFO);
+        snprintf(msg, 4096, "INFORMATION: [%s] Code %d : %s\n", pLayerPrefix, messageCode, pMessage);
     }
 
-    printf("%s \xBA %s\n", pLayerPrefix, pMessage);
-
-    SetConsoleColor(CONSOLE_COLOR::NORMAL);
-
-    if (flags == VK_DEBUG_REPORT_WARNING_BIT_EXT ||
-        flags == VK_DEBUG_REPORT_ERROR_BIT_EXT)
-    {
-        OutputDebugStringA(pMessage);
-        OutputDebugStringA("\n");
-    }
+#if defined(_WIN32)
+    OutputDebugStringA(msg);
+#elif defined(__linux__)
+    printf("%s", msg);
+#else
+#error Unknown Platform
+#endif
 
     return VK_FALSE;
 }
@@ -305,14 +390,14 @@ VkPresentModeKHR ChooseSwapPresentMode()
 
 static VkExtent2D ChooseSwapExtent()
 {
-    if (g_SurfaceCapabilities.currentExtent.width != UINT_MAX)
+    if (g_SurfaceCapabilities.currentExtent.width != UINT32_MAX)
         return g_SurfaceCapabilities.currentExtent;
 
     VkExtent2D result = {
         std::max(g_SurfaceCapabilities.minImageExtent.width,
-                 std::min(g_SurfaceCapabilities.maxImageExtent.width, (uint32_t)g_SizeX)),
+                 std::min(g_SurfaceCapabilities.maxImageExtent.width, g_SizeX)),
         std::max(g_SurfaceCapabilities.minImageExtent.height,
-                 std::min(g_SurfaceCapabilities.maxImageExtent.height, (uint32_t)g_SizeY))};
+                 std::min(g_SurfaceCapabilities.maxImageExtent.height, g_SizeY))};
     return result;
 }
 
@@ -364,32 +449,32 @@ static void CreateMesh()
         1,
         2,
         3,
-        USHRT_MAX,
+        UINT16_MAX,
         4,
         5,
         6,
         7,
-        USHRT_MAX,
+        UINT16_MAX,
         8,
         9,
         10,
         11,
-        USHRT_MAX,
+        UINT16_MAX,
         12,
         13,
         14,
         15,
-        USHRT_MAX,
+        UINT16_MAX,
         16,
         17,
         18,
         19,
-        USHRT_MAX,
+        UINT16_MAX,
         20,
         21,
         22,
         23,
-        USHRT_MAX,
+        UINT16_MAX,
     };
 
     size_t vertexBufferSize = sizeof(Vertex) * _countof(vertices);
@@ -681,7 +766,20 @@ static void CreateSwapchain()
 {
     // Query surface formats.
 
-    ERR_GUARD_VULKAN(vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_hPhysicalDevice, g_hSurface, &g_SurfaceCapabilities));
+    VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_hPhysicalDevice, g_hSurface, &g_SurfaceCapabilities);
+    if (VK_SUCCESS == res)
+    {
+        assert(VK_SUCCESS == res);
+    }
+    else if (VK_ERROR_SURFACE_LOST_KHR == res)
+    {
+        g_loop_quit = true;
+        return;
+    }
+    else
+    {
+        assert(0);
+    }
 
     uint32_t formatCount = 0;
     ERR_GUARD_VULKAN(vkGetPhysicalDeviceSurfaceFormatsKHR(g_hPhysicalDevice, g_hSurface, &formatCount, nullptr));
@@ -1170,7 +1268,11 @@ static void InitializeApplication()
 
     std::vector<const char *> enabledInstanceExtensions;
     enabledInstanceExtensions.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+#if defined(_WIN32)
     enabledInstanceExtensions.push_back(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);
+#elif defined(__linux__)
+    enabledInstanceExtensions.push_back(VK_KHR_XCB_SURFACE_EXTENSION_NAME);
+#endif
 
     std::vector<const char *> instanceLayers;
     if (g_EnableValidationLayer == true)
@@ -1179,6 +1281,7 @@ static void InitializeApplication()
         enabledInstanceExtensions.push_back("VK_EXT_debug_report");
     }
 
+#if 1
     for (const auto &extensionProperties : availableInstanceExtensions)
     {
         if (strcmp(extensionProperties.extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == 0)
@@ -1187,12 +1290,13 @@ static void InitializeApplication()
             VK_KHR_get_physical_device_properties2_enabled = true;
         }
     }
+#endif
 
     VkApplicationInfo appInfo = {VK_STRUCTURE_TYPE_APPLICATION_INFO};
     appInfo.pApplicationName = APP_TITLE_A;
-    appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.applicationVersion = 0,
     appInfo.pEngineName = "Adam Sawicki Engine";
-    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.engineVersion = 0,
     appInfo.apiVersion = VMA_VULKAN_VERSION == 1001000 ? VK_API_VERSION_1_1 : VK_API_VERSION_1_0;
 
     VkInstanceCreateInfo instInfo = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
@@ -1203,13 +1307,6 @@ static void InitializeApplication()
     instInfo.ppEnabledLayerNames = instanceLayers.data();
 
     ERR_GUARD_VULKAN(vkCreateInstance(&instInfo, g_Allocs, &g_hVulkanInstance));
-
-    // Create VkSurfaceKHR.
-    VkWin32SurfaceCreateInfoKHR surfaceInfo = {VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR};
-    surfaceInfo.hinstance = g_hAppInstance;
-    surfaceInfo.hwnd = g_hWnd;
-    VkResult result = vkCreateWin32SurfaceKHR(g_hVulkanInstance, &surfaceInfo, g_Allocs, &g_hSurface);
-    assert(result == VK_SUCCESS);
 
     if (g_EnableValidationLayer == true)
         RegisterDebugCallbacks();
@@ -1244,9 +1341,9 @@ static void InitializeApplication()
     vkGetPhysicalDeviceQueueFamilyProperties(g_hPhysicalDevice, &queueFamilyCount, queueFamilies.data());
     for (uint32_t i = 0;
          (i < queueFamilyCount) &&
-         (g_GraphicsQueueFamilyIndex == UINT_MAX ||
-          g_PresentQueueFamilyIndex == UINT_MAX ||
-          (g_SparseBindingEnabled && g_SparseBindingQueueFamilyIndex == UINT_MAX));
+         (g_GraphicsQueueFamilyIndex == UINT32_MAX ||
+          g_PresentQueueFamilyIndex == UINT32_MAX ||
+          (g_SparseBindingEnabled && g_SparseBindingQueueFamilyIndex == UINT32_MAX));
          ++i)
     {
         if (queueFamilies[i].queueCount > 0)
@@ -1258,9 +1355,14 @@ static void InitializeApplication()
                 g_GraphicsQueueFamilyIndex = i;
             }
 
-            VkBool32 surfaceSupported = 0;
-            VkResult res = vkGetPhysicalDeviceSurfaceSupportKHR(g_hPhysicalDevice, i, g_hSurface, &surfaceSupported);
-            if ((res >= 0) && (surfaceSupported == VK_TRUE))
+#if defined(_WIN32)
+            VkBool32 surfaceSupported = xxxx;
+#elif defined(__linux__)
+            VkBool32 surfaceSupported = vkGetPhysicalDeviceXcbPresentationSupportKHR(g_hPhysicalDevice, i, g_hAppInstance, g_screen->root_visual);
+#else
+#error 1
+#endif
+            if (surfaceSupported == VK_TRUE)
             {
                 g_PresentQueueFamilyIndex = i;
             }
@@ -1273,7 +1375,7 @@ static void InitializeApplication()
             }
         }
     }
-    assert(g_GraphicsQueueFamilyIndex != UINT_MAX);
+    assert(g_GraphicsQueueFamilyIndex != UINT32_MAX);
 
     g_SparseBindingEnabled = g_SparseBindingEnabled && g_SparseBindingQueueFamilyIndex != UINT32_MAX;
 
@@ -1318,6 +1420,8 @@ static void InitializeApplication()
     // Determine list of device extensions to enable.
     std::vector<const char *> enabledDeviceExtensions;
     enabledDeviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+
+#if 1
     {
         uint32_t propertyCount = 0;
         ERR_GUARD_VULKAN(vkEnumerateDeviceExtensionProperties(g_hPhysicalDevice, nullptr, &propertyCount, nullptr));
@@ -1325,7 +1429,7 @@ static void InitializeApplication()
         if (propertyCount)
         {
             std::vector<VkExtensionProperties> properties{propertyCount};
-            ERR_GUARD_VULKAN(vkEnumerateDeviceExtensionProperties(g_hPhysicalDevice, nullptr, &propertyCount, properties.data()));
+            ERR_GUARD_VULKAN(vkEnumerateDeviceExtensionProperties(g_hPhysicalDevice, nullptr, &propertyCount, &properties[0]));
 
             for (uint32_t i = 0; i < propertyCount; ++i)
             {
@@ -1352,17 +1456,49 @@ static void InitializeApplication()
             }
         }
     }
+#endif
 
-    VkDeviceCreateInfo deviceCreateInfo = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
-    deviceCreateInfo.enabledLayerCount = 0;
-    deviceCreateInfo.ppEnabledLayerNames = nullptr;
-    deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledDeviceExtensions.size();
-    deviceCreateInfo.ppEnabledExtensionNames = !enabledDeviceExtensions.empty() ? enabledDeviceExtensions.data() : nullptr;
+    VkDeviceCreateInfo deviceCreateInfo;
+    deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    deviceCreateInfo.pNext = NULL;
     deviceCreateInfo.queueCreateInfoCount = queueCount;
     deviceCreateInfo.pQueueCreateInfos = queueCreateInfo;
+    deviceCreateInfo.enabledLayerCount = 0;
+    deviceCreateInfo.ppEnabledLayerNames = NULL;
+    deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledDeviceExtensions.size();
+    deviceCreateInfo.ppEnabledExtensionNames = !enabledDeviceExtensions.empty() ? enabledDeviceExtensions.data() : NULL;
+    deviceCreateInfo.enabledExtensionCount = (uint32_t)enabledDeviceExtensions.size();
+    deviceCreateInfo.ppEnabledExtensionNames = !enabledDeviceExtensions.empty() ? enabledDeviceExtensions.data() : NULL;
     deviceCreateInfo.pEnabledFeatures = &deviceFeatures;
 
     ERR_GUARD_VULKAN(vkCreateDevice(g_hPhysicalDevice, &deviceCreateInfo, g_Allocs, &g_hDevice));
+
+    // Create VkSurfaceKHR.
+#if defined(_WIN32)
+    VkWin32SurfaceCreateInfoKHR surfaceInfo;
+    surfaceInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    surfaceInfo.pNext = NULL;
+    surfaceInfo.hinstance = g_hAppInstance;
+    surfaceInfo.hwnd = g_hWnd;
+    VkResult result = vkCreateWin32SurfaceKHR(g_hVulkanInstance, &surfaceInfo, g_Allocs, &g_hSurface);
+    assert(result == VK_SUCCESS);
+#elif defined(__linux__)
+    VkXcbSurfaceCreateInfoKHR surfaceInfo;
+    surfaceInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+    surfaceInfo.pNext = NULL;
+    surfaceInfo.flags = 0;
+    surfaceInfo.connection = g_hAppInstance;
+    surfaceInfo.window = g_hWnd;
+    VkResult result = vkCreateXcbSurfaceKHR(g_hVulkanInstance, &surfaceInfo, g_Allocs, &g_hSurface);
+    assert(result == VK_SUCCESS);
+#endif
+
+    // This should be guaranteed by the platform-specific can_present call
+
+    VkBool32 surfaceSupported;
+    VkResult res = vkGetPhysicalDeviceSurfaceSupportKHR(g_hPhysicalDevice, g_PresentQueueFamilyIndex, g_hSurface, &surfaceSupported);
+    assert(VK_SUCCESS == res);
+    assert(surfaceSupported);
 
     // Create memory allocator
 
@@ -1652,18 +1788,6 @@ static void RecreateSwapChain()
 
 static void DrawFrame()
 {
-    // Begin main command buffer
-    size_t cmdBufIndex = (g_NextCommandBufferIndex++) % COMMAND_BUFFER_COUNT;
-    VkCommandBuffer hCommandBuffer = g_MainCommandBuffers[cmdBufIndex];
-    VkFence hCommandBufferExecutedFence = g_MainCommandBufferExecutedFances[cmdBufIndex];
-
-    ERR_GUARD_VULKAN(vkWaitForFences(g_hDevice, 1, &hCommandBufferExecutedFence, VK_TRUE, UINT64_MAX));
-    ERR_GUARD_VULKAN(vkResetFences(g_hDevice, 1, &hCommandBufferExecutedFence));
-
-    VkCommandBufferBeginInfo commandBufferBeginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
-    commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-    ERR_GUARD_VULKAN(vkBeginCommandBuffer(hCommandBuffer, &commandBufferBeginInfo));
-
     // Acquire swapchain image
     uint32_t imageIndex = 0;
     VkResult res = vkAcquireNextImageKHR(g_hDevice, g_hSwapchain, UINT64_MAX, g_hImageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);
@@ -1676,6 +1800,19 @@ static void DrawFrame()
     {
         ERR_GUARD_VULKAN(res);
     }
+
+    // Begin main command buffer
+    size_t cmdBufIndex = (g_NextCommandBufferIndex++) % COMMAND_BUFFER_COUNT;
+    VkCommandBuffer hCommandBuffer = g_MainCommandBuffers[cmdBufIndex];
+    VkFence hCommandBufferExecutedFence = g_MainCommandBufferExecutedFances[cmdBufIndex];
+
+    ERR_GUARD_VULKAN(vkWaitForFences(g_hDevice, 1, &hCommandBufferExecutedFence, VK_TRUE, UINT64_MAX));
+
+    ERR_GUARD_VULKAN(vkResetFences(g_hDevice, 1, &hCommandBufferExecutedFence));
+
+    VkCommandBufferBeginInfo commandBufferBeginInfo = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    commandBufferBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    ERR_GUARD_VULKAN(vkBeginCommandBuffer(hCommandBuffer, &commandBufferBeginInfo));
 
     // Record geometry pass
 
@@ -1778,13 +1915,65 @@ static void DrawFrame()
 
 static void HandlePossibleSizeChange()
 {
-    RECT clientRect;
-    GetClientRect(g_hWnd, &clientRect);
-    LONG newSizeX = clientRect.right - clientRect.left;
-    LONG newSizeY = clientRect.bottom - clientRect.top;
-    if ((newSizeX > 0) &&
-        (newSizeY > 0) &&
-        ((newSizeX != g_SizeX) || (newSizeY != g_SizeY)))
+    VkSurfaceCapabilitiesKHR surfCapabilities;
+    VkResult res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(g_hPhysicalDevice, g_hSurface, &surfCapabilities);
+    if (VK_SUCCESS == res)
+    {
+        assert(VK_SUCCESS == res);
+    }
+    else if (VK_ERROR_SURFACE_LOST_KHR == res)
+    {
+        g_loop_quit = true;
+        return;
+    }
+    else
+    {
+        assert(0);
+    }
+
+    uint32_t newSizeX;
+    uint32_t newSizeY;
+    if (surfCapabilities.currentExtent.width != 0xFFFFFFFF && surfCapabilities.currentExtent.height != 0xFFFFFFFF)
+    {
+        newSizeX = surfCapabilities.currentExtent.width;
+        newSizeY = surfCapabilities.currentExtent.height;
+    }
+    else if (surfCapabilities.currentExtent.width == 0xFFFFFFFF && surfCapabilities.currentExtent.height == 0xFFFFFFFF)
+    {
+#if defined(_WIN32)
+        RECT clientRect;
+        GetClientRect(g_hWnd, &clientRect);
+        newSizeX = clientRect.right - clientRect.left;
+        newSizeY = clientRect.bottom - clientRect.top;
+#elif defined(__linux__)
+        newSizeX = g_SizeX;
+        newSizeY = g_SizeY;
+#endif
+        if (newSizeX < surfCapabilities.minImageExtent.width)
+        {
+            newSizeX = surfCapabilities.minImageExtent.width;
+        }
+        else if (newSizeX > surfCapabilities.maxImageExtent.width)
+        {
+            newSizeX = surfCapabilities.maxImageExtent.width;
+        }
+
+        if (newSizeY < surfCapabilities.minImageExtent.height)
+        {
+            newSizeY = surfCapabilities.minImageExtent.height;
+        }
+        else if (newSizeY > surfCapabilities.maxImageExtent.height)
+        {
+            newSizeY = surfCapabilities.maxImageExtent.height;
+        }
+    }
+    else
+    {
+        // width and height are either both 0xFFFFFFFF, or both not 0xFFFFFFFF.
+        assert(0);
+    }
+
+    if ((newSizeX > 0) && (newSizeY > 0) && ((newSizeX != g_SizeX) || (newSizeY != g_SizeY)))
     {
         g_SizeX = newSizeX;
         g_SizeY = newSizeY;
@@ -1793,6 +1982,7 @@ static void HandlePossibleSizeChange()
     }
 }
 
+#if defined(_WIN32)
 static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -1866,11 +2056,19 @@ static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
+#endif
 
 int main()
 {
+#if defined(_WIN32)
     g_hAppInstance = (HINSTANCE)GetModuleHandle(NULL);
+#elif defined(__linux__)
+    int scr;
+    g_hAppInstance = xcb_connect(NULL, &scr);
+    assert(xcb_connection_has_error(g_hAppInstance) == 0);
+#endif
 
+#if defined(_WIN32)
     WNDCLASSEX wndClassDesc = {sizeof(WNDCLASSEX)};
     wndClassDesc.style = CS_VREDRAW | CS_HREDRAW | CS_DBLCLKS;
     wndClassDesc.hbrBackground = NULL;
@@ -1889,11 +2087,54 @@ int main()
     RECT rect = {0, 0, g_SizeX, g_SizeY};
     AdjustWindowRectEx(&rect, style, FALSE, exStyle);
 
-    CreateWindowEx(
-        exStyle, WINDOW_CLASS_NAME, APP_TITLE_W, style,
-        CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-        NULL, NULL, g_hAppInstance, NULL);
+    CreateWindowEx(exStyle, WINDOW_CLASS_NAME, APP_TITLE_W, style, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, g_hAppInstance, NULL);
+#elif defined(__linux__)
+    xcb_setup_t const *setup = xcb_get_setup(g_hAppInstance);
+    xcb_screen_iterator_t iter = xcb_setup_roots_iterator(setup);
+    while (scr-- > 0)
+    {
+        xcb_screen_next(&iter);
+    }
+    g_screen = iter.data;
 
+    g_hWnd = xcb_generate_id(g_hAppInstance);
+
+    uint32_t value_mask;
+    uint32_t value_list[32];
+    value_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
+    value_list[0] = g_screen->black_pixel;
+    value_list[1] = XCB_EVENT_MASK_KEY_RELEASE;
+
+    xcb_create_window(g_hAppInstance, g_screen->root_depth, g_hWnd, g_screen->root, 0, 0, g_SizeX, g_SizeY, 0, XCB_WINDOW_CLASS_INPUT_OUTPUT, g_screen->root_visual, value_mask, value_list);
+
+    /* Magic code that will send notification when window is destroyed */
+    xcb_intern_atom_cookie_t cookie = xcb_intern_atom(g_hAppInstance, 1, 12, "WM_PROTOCOLS");
+    xcb_intern_atom_reply_t *reply = xcb_intern_atom_reply(g_hAppInstance, cookie, 0);
+    xcb_atom_t atom1 = reply->atom;
+    free(reply);
+
+    xcb_intern_atom_cookie_t cookie2 = xcb_intern_atom(g_hAppInstance, 1, 16, "WM_DELETE_WINDOW");
+    xcb_intern_atom_reply_t *reply2 = xcb_intern_atom_reply(g_hAppInstance, cookie2, 0);
+    g_atom_wm_delete_window = reply2->atom;
+    free(reply2);
+
+    /* Window Title */
+    xcb_intern_atom_cookie_t cookie3 = xcb_intern_atom(g_hAppInstance, 1, 12, "_NET_WM_NAME");
+    xcb_intern_atom_reply_t *reply3 = xcb_intern_atom_reply(g_hAppInstance, cookie3, 0);
+    xcb_atom_t atom3 = reply3->atom;
+    free(reply3);
+
+    xcb_intern_atom_cookie_t cookie4 = xcb_intern_atom(g_hAppInstance, 1, 11, "UTF8_STRING");
+    xcb_intern_atom_reply_t *reply4 = xcb_intern_atom_reply(g_hAppInstance, cookie4, 0);
+    xcb_atom_t atom4 = reply4->atom;
+    free(reply4);
+
+    xcb_change_property(g_hAppInstance, XCB_PROP_MODE_REPLACE, g_hWnd, atom3, atom4, 8U, strlen(APP_TITLE_A), APP_TITLE_A);
+
+    xcb_map_window(g_hAppInstance, g_hWnd);
+#endif
+
+#if defined(_WIN32)
     MSG msg;
     for (;;)
     {
@@ -1907,18 +2148,85 @@ int main()
         if (g_hDevice != VK_NULL_HANDLE)
             DrawFrame();
     }
+#elif defined(__linux__)
+    xcb_flush(g_hAppInstance);
+
+    InitializeApplication();
+    PrintAllocatorStats();
+
+    g_loop_quit = false;
+    while (!g_loop_quit)
+    {
+        xcb_generic_event_t *event = xcb_poll_for_event(g_hAppInstance);
+        if (event != NULL)
+        {
+            uint8_t event_code = event->response_type & 0x7f;
+            switch (event_code)
+            {
+            case XCB_KEY_RELEASE:
+            {
+                const xcb_key_release_event_t *key = (const xcb_key_release_event_t *)event;
+                switch (key->detail)
+                {
+                case 9: // Escape // by xev
+                    g_loop_quit = true;
+                    break;
+                case 28: // T
+                    try
+                    {
+                        Test();
+                    }
+                    catch (const std::exception &ex)
+                    {
+                        printf("ERROR: %s\n", ex.what());
+                    }
+                    break;
+                case 39: // S
+                    try
+                    {
+                        if (g_SparseBindingEnabled)
+                        {
+                            TestSparseBinding();
+                        }
+                        else
+                        {
+                            printf("Sparse binding not supported.\n");
+                        }
+                    }
+                    catch (const std::exception &ex)
+                    {
+                        printf("ERROR: %s\n", ex.what());
+                    }
+                    break;
+                }
+            }
+            break;
+            case XCB_CLIENT_MESSAGE:
+            {
+                if ((*(xcb_client_message_event_t *)event).data.data32[0] == g_atom_wm_delete_window)
+                {
+                    g_loop_quit = true;
+                }
+            }
+            break;
+            default:
+                break;
+            }
+            free(event);
+        }
+        else
+        {
+            DrawFrame();
+        }
+    }
+
+    FinalizeApplication();
+
+    xcb_destroy_window(g_hAppInstance, g_hWnd);
+    xcb_disconnect(g_hAppInstance);
+#endif
 
     TEST(g_CpuAllocCount.load() == 0);
 
     return 0;
 }
-
-#else // #ifdef _WIN32
-
-#include "VmaUsage.h"
-
-int main()
-{
-}
-
-#endif // #ifdef _WIN32

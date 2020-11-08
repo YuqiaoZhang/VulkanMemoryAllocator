@@ -23,7 +23,7 @@
 #include "Common.h"
 #include "SparseBindingTest.h"
 
-#ifdef _WIN32
+#if defined(_WIN32)
 
 ////////////////////////////////////////////////////////////////////////////////
 // External imports
@@ -589,4 +589,12 @@ void TestSparseBinding()
     images.clear();
 }
 
-#endif // #ifdef _WIN32
+#elif defined(__linux__)
+
+void TestSparseBinding()
+{
+}
+
+#else
+#error 1
+#endif

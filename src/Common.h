@@ -27,6 +27,43 @@
 
 #ifdef _WIN32
 
+#elif defined(__linux__)
+
+#define _countof(array) (sizeof(array) / sizeof(array[0]))
+
+#define MAX_PATH 4096
+
+#include <sys/time.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
+static inline uint32_t GetTickCount(void)
+{
+    struct timeval tv;
+    int rtval = gettimeofday(&tv, NULL);
+    assert(rtval == 0);
+    int64_t millisecond = 1000LL * static_cast<int64_t>(tv.tv_sec) + (static_cast<int64_t>(tv.tv_usec) / 1000LL);
+    return millisecond;
+}
+
+static inline void OutputDebugStringA(char const *lpOutputString)
+{
+    printf("%s", lpOutputString);
+}
+
+static inline void ZeroMemory(void *Destination, size_t Length)
+{
+    memset(Destination, 0, Length);
+}
+
+#else
+
+#error Unknown Platform
+
+#endif
+
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -44,28 +81,16 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstdarg>
+#include <cmath>
+#include <cstdint>
 
 typedef std::chrono::high_resolution_clock::time_point time_point;
 typedef std::chrono::high_resolution_clock::duration duration;
 
-#ifdef _DEBUG
-#define TEST(expr)              \
-    do                          \
-    {                           \
-        if (!(expr))            \
-        {                       \
-            assert(0 && #expr); \
-        }                       \
-    } while (0)
+#ifndef NDEBUG
+#define TEST(expr) (assert(expr))
 #else
-#define TEST(expr)                                           \
-    do                                                       \
-    {                                                        \
-        if (!(expr))                                         \
-        {                                                    \
-            throw std::runtime_error("TEST FAILED: " #expr); \
-        }                                                    \
-    } while (0)
+#define TEST(expr) (expr)
 #endif
 
 #define ERR_GUARD_VULKAN(expr) TEST((expr) >= 0)
@@ -298,8 +323,6 @@ void PrintWarningF(const wchar_t *format, ...);
 void PrintErrorF(const char *format, ...);
 void PrintErrorF(const wchar_t *format, ...);
 
-void SaveFile(const wchar_t *filePath, const void *data, size_t dataSize);
-
-#endif // #ifdef _WIN32
+void SaveFile(const char *filePath, const void *data, size_t dataSize);
 
 #endif
